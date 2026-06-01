@@ -17,34 +17,53 @@
 
 typedef enum
 {
-	VISUAL_MODE_SPECTRUM = 0,
+    // ==================================================
+    // CLASSIC ANALYZER
+    // ==================================================
+    VISUAL_MODE_SPECTRUM = 0,
 
-	VISUAL_MODE_MIRROR_FULL,
-	VISUAL_MODE_MIRROR_CENTER,
+    VISUAL_MODE_MIRROR_FULL,
+    VISUAL_MODE_MIRROR_CENTER,
 
-	VISUAL_MODE_PULSE,
-	VISUAL_MODE_RAINBOW,
+    VISUAL_MODE_RAINBOW,
+    VISUAL_MODE_PULSE,
 
-	VISUAL_MODE_WATERUP,
+    // ==================================================
+    // REACTIVE / ENERGY
+    // ==================================================
+    VISUAL_MODE_SPARK_NOISE,
 
-	VISUAL_MODE_GRID_BREATH,
-	VISUAL_MODE_HEX,
+    VISUAL_MODE_GLITCH_GRID,
 
-	VISUAL_MODE_ROTATING_FIELD,
+    VISUAL_MODE_GRID_BREATH,
 
-	VISUAL_MODE_MULTI_ORBIT,
+    // ==================================================
+    // SPACE / MOTION
+    // ==================================================
+    VISUAL_MODE_ROTATING_FIELD,
 
-	VISUAL_MODE_PLASMA_MODE,
+    VISUAL_MODE_PLASMA_MODE,
 
-	VISUAL_MODE_SPARK_NOISE,
+    VISUAL_MODE_MULTI_ORBIT,
 
-	VISUAL_MODE_GLITCH_GRID,
+    VISUAL_MODE_HEX,
 
-	VISUAL_MODE_LASER,
+    VISUAL_MODE_LASER,
 
-	VISUAL_MODE_SHOCKWAVE,
+    // ==================================================
+    // FLOW / DEPTH
+    // ==================================================
+    VISUAL_MODE_WATERUP,
 
-	VISUAL_MODE_COUNT
+    VISUAL_MODE_SHOCKWAVE,
+
+    VISUAL_MODE_NORTHERN_LIGHTS,
+
+    // ==================================================
+    // COUNT
+    // ==================================================
+    VISUAL_MODE_COUNT
+
 } VisualMode_t;
 
 // ======================================================

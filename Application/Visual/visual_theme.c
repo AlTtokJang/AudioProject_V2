@@ -9,15 +9,13 @@
 // ======================================================
 // TYPE
 // ======================================================
-
 typedef struct {
     float r, g, b;
 } Color;
 
 // ======================================================
-// SAFE UTIL
+// UTIL
 // ======================================================
-
 static inline float clamp01(float x)
 {
     return (x < 0.0f) ? 0.0f : (x > 1.0f ? 1.0f : x);
@@ -40,9 +38,8 @@ static inline float lerp(float a, float b, float t)
 }
 
 // ======================================================
-// LED OUTPUT APPLY
+// LED OUTPUT
 // ======================================================
-
 static inline void applyColor(Color c, float *r, float *g, float *b)
 {
     *r = LED_ON_R * c.r;
@@ -55,29 +52,19 @@ static inline void applyColor(Color c, float *r, float *g, float *b)
 }
 
 // ======================================================
-// SEGMENT (SAFE GRADIENT)
+// SEGMENT
 // ======================================================
-
 static inline int segment(
-    float t,
-    float t0,
-    float t1,
-    Color c0,
-    Color c1,
-    float *r,
-    float *g,
-    float *b)
+    float t, float t0, float t1,
+    Color c0, Color c1,
+    float *r, float *g, float *b)
 {
-    if (t < t0 || t >= t1)
-        return 0;
+    if (t < t0 || t >= t1) return 0;
 
     float d = t1 - t0;
-    if (d <= 1e-6f)
-        return 0;
+    if (d <= 1e-6f) return 0;
 
-    float x = (t - t0) / d;
-    x = clamp01(x);
-
+    float x = clamp01((t - t0) / d);
     float k = smoothstep(x);
 
     Color out = {
@@ -91,93 +78,86 @@ static inline int segment(
 }
 
 // ======================================================
-// COLOR PALETTE
+// PALETTE (UNCHANGED)
 // ======================================================
+static const Color C_RED    = {1.00f, 0.05f, 0.05f};
+static const Color C_PINK   = {1.00f, 0.25f, 0.90f};
+static const Color C_WHITEP = {1.00f, 0.85f, 1.00f};
 
-static const Color C_RED     = {1.00f, 0.05f, 0.05f};
-static const Color C_PINK    = {1.00f, 0.25f, 0.90f};
-static const Color C_WHITEP  = {1.00f, 0.85f, 1.00f};
+static const Color C_PURPLE = {0.60f, 0.10f, 1.00f};
+static const Color C_LAV    = {0.85f, 0.65f, 1.00f};
 
-static const Color C_PURPLE  = {0.60f, 0.10f, 1.00f};
-static const Color C_LAV     = {0.85f, 0.65f, 1.00f};
+static const Color C_BLUE   = {0.10f, 0.25f, 1.00f};
+static const Color C_SKY    = {0.20f, 0.75f, 1.00f};
+static const Color C_CYAN   = {0.10f, 1.00f, 1.00f};
 
-static const Color C_BLUE    = {0.10f, 0.25f, 1.00f};
-static const Color C_SKY     = {0.20f, 0.75f, 1.00f};
-static const Color C_CYAN    = {0.10f, 1.00f, 1.00f};
+static const Color C_GREEN  = {0.10f, 1.00f, 0.20f};
+static const Color C_LIME   = {0.60f, 1.00f, 0.10f};
 
-static const Color C_GREEN   = {0.10f, 1.00f, 0.20f};
-static const Color C_LIME    = {0.60f, 1.00f, 0.10f};
+static const Color C_YELLOW = {1.00f, 1.00f, 0.10f};
+static const Color C_ORANGE = {1.00f, 0.55f, 0.05f};
 
-static const Color C_YELLOW  = {1.00f, 1.00f, 0.10f};
-static const Color C_ORANGE  = {1.00f, 0.55f, 0.05f};
-
-static const Color C_WHITEG  = {1.00f, 1.00f, 0.75f};
-static const Color C_WARMW   = {1.00f, 0.95f, 0.90f};
+static const Color C_WHITEG = {1.00f, 1.00f, 0.75f};
+static const Color C_WARMW  = {1.00f, 0.95f, 0.90f};
 
 // ======================================================
-// MAIN COLOR ENGINE
+// THEME ENGINE (UNCHANGED LOGIC)
 // ======================================================
-
-void VisualTheme_GetColor(
-    uint8_t theme,
-    float t,
-    float *r,
-    float *g,
-    float *b)
+void VisualTheme_GetColor(uint8_t theme, float t, float *r, float *g, float *b)
 {
     t = clamp01(t);
 
     switch (theme)
     {
-    case 0:
-        if (segment(t, 0.00f, 0.14f, C_SKY, C_WHITEG, r,g,b)) break;
-        if (segment(t, 0.14f, 0.28f, C_WHITEG, C_YELLOW, r,g,b)) break;
-        if (segment(t, 0.28f, 0.46f, C_YELLOW, C_ORANGE, r,g,b)) break;
-        if (segment(t, 0.46f, 0.64f, C_ORANGE, C_WHITEP, r,g,b)) break;
-        if (segment(t, 0.64f, 0.82f, C_WHITEP, C_PINK, r,g,b)) break;
-        segment(t, 0.82f, 1.00f, C_PINK, C_PURPLE, r,g,b);
-        break;
+        case 0:
+            if (segment(t,0.00f,0.14f,C_SKY,C_WHITEG,r,g,b)) break;
+            if (segment(t,0.14f,0.28f,C_WHITEG,C_YELLOW,r,g,b)) break;
+            if (segment(t,0.28f,0.46f,C_YELLOW,C_ORANGE,r,g,b)) break;
+            if (segment(t,0.46f,0.64f,C_ORANGE,C_WHITEP,r,g,b)) break;
+            if (segment(t,0.64f,0.82f,C_WHITEP,C_PINK,r,g,b)) break;
+            segment(t,0.82f,1.0f,C_PINK,C_PURPLE,r,g,b);
+            break;
 
-    case 1:
-        if (segment(t, 0.00f, 0.25f, C_LIME, C_CYAN, r,g,b)) break;
-        if (segment(t, 0.25f, 0.50f, C_CYAN, C_BLUE, r,g,b)) break;
-        if (segment(t, 0.50f, 0.75f, C_BLUE, C_PURPLE, r,g,b)) break;
-        segment(t, 0.75f, 1.00f, C_PURPLE, C_LAV, r,g,b);
-        break;
+        case 1:
+            if (segment(t,0.00f,0.25f,C_LIME,C_CYAN,r,g,b)) break;
+            if (segment(t,0.25f,0.50f,C_CYAN,C_BLUE,r,g,b)) break;
+            if (segment(t,0.50f,0.75f,C_BLUE,C_PURPLE,r,g,b)) break;
+            segment(t,0.75f,1.0f,C_PURPLE,C_LAV,r,g,b);
+            break;
 
-    case 2:
-        if (segment(t, 0.00f, 0.12f, C_RED, C_PINK, r,g,b)) break;
-        if (segment(t, 0.12f, 0.26f, C_PINK, C_WHITEP, r,g,b)) break;
-        if (segment(t, 0.26f, 0.40f, C_WHITEP, C_LAV, r,g,b)) break;
-        if (segment(t, 0.40f, 0.54f, C_LAV, C_PURPLE, r,g,b)) break;
-        if (segment(t, 0.54f, 0.68f, C_PURPLE, C_BLUE, r,g,b)) break;
-        if (segment(t, 0.68f, 0.84f, C_BLUE, C_SKY, r,g,b)) break;
-        segment(t, 0.84f, 1.00f, C_SKY, C_CYAN, r,g,b);
-        break;
+        case 2:
+            if (segment(t,0.00f,0.12f,C_RED,C_PINK,r,g,b)) break;
+            if (segment(t,0.12f,0.26f,C_PINK,C_WHITEP,r,g,b)) break;
+            if (segment(t,0.26f,0.40f,C_WHITEP,C_LAV,r,g,b)) break;
+            if (segment(t,0.40f,0.54f,C_LAV,C_PURPLE,r,g,b)) break;
+            if (segment(t,0.54f,0.68f,C_PURPLE,C_BLUE,r,g,b)) break;
+            if (segment(t,0.68f,0.84f,C_BLUE,C_SKY,r,g,b)) break;
+            segment(t,0.84f,1.0f,C_SKY,C_CYAN,r,g,b);
+            break;
 
-    case 3:
-        if (segment(t, 0.00f, 0.22f, C_LIME,   C_YELLOW, r,g,b)) break;
-        if (segment(t, 0.22f, 0.44f, C_YELLOW, C_ORANGE, r,g,b)) break;
-        if (segment(t, 0.44f, 0.66f, C_ORANGE, C_RED,    r,g,b)) break;
-        segment(t, 0.66f, 1.00f, C_RED, C_BLUE, r,g,b);
-        break;
+        case 3:
+            if (segment(t,0.00f,0.22f,C_LIME,C_YELLOW,r,g,b)) break;
+            if (segment(t,0.22f,0.44f,C_YELLOW,C_ORANGE,r,g,b)) break;
+            if (segment(t,0.44f,0.66f,C_ORANGE,C_RED,r,g,b)) break;
+            segment(t,0.66f,1.0f,C_RED,C_BLUE,r,g,b);
+            break;
 
-    case 4:
-        if (segment(t, 0.00f, 0.16f, C_RED, C_PINK, r,g,b)) break;
-        if (segment(t, 0.16f, 0.34f, C_PINK, C_WHITEP, r,g,b)) break;
-        if (segment(t, 0.34f, 0.54f, C_WHITEP, C_LIME, r,g,b)) break;
-        if (segment(t, 0.54f, 0.76f, C_LIME, C_GREEN, r,g,b)) break;
-        segment(t, 0.76f, 1.00f, C_GREEN, C_CYAN, r,g,b);
-        break;
+        case 4:
+            if (segment(t,0.00f,0.16f,C_RED,C_PINK,r,g,b)) break;
+            if (segment(t,0.16f,0.34f,C_PINK,C_WHITEP,r,g,b)) break;
+            if (segment(t,0.34f,0.54f,C_WHITEP,C_LIME,r,g,b)) break;
+            if (segment(t,0.54f,0.76f,C_LIME,C_GREEN,r,g,b)) break;
+            segment(t,0.76f,1.0f,C_GREEN,C_CYAN,r,g,b);
+            break;
 
-    default:
-        if (segment(t, 0.00f, 0.14f, C_YELLOW, C_WARMW, r,g,b)) break;
-        if (segment(t, 0.14f, 0.28f, C_WARMW, C_PINK, r,g,b)) break;
-        if (segment(t, 0.28f, 0.44f, C_PINK, C_PURPLE, r,g,b)) break;
-        if (segment(t, 0.44f, 0.62f, C_PURPLE, C_BLUE, r,g,b)) break;
-        if (segment(t, 0.62f, 0.82f, C_BLUE, C_CYAN, r,g,b)) break;
-        segment(t, 0.82f, 1.00f, C_CYAN, C_GREEN, r,g,b);
-        break;
+        default:
+            if (segment(t,0.00f,0.14f,C_YELLOW,C_WARMW,r,g,b)) break;
+            if (segment(t,0.14f,0.28f,C_WARMW,C_PINK,r,g,b)) break;
+            if (segment(t,0.28f,0.44f,C_PINK,C_PURPLE,r,g,b)) break;
+            if (segment(t,0.44f,0.62f,C_PURPLE,C_BLUE,r,g,b)) break;
+            if (segment(t,0.62f,0.82f,C_BLUE,C_CYAN,r,g,b)) break;
+            segment(t,0.82f,1.0f,C_CYAN,C_GREEN,r,g,b);
+            break;
     }
 }
 

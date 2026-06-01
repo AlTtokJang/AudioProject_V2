@@ -16,6 +16,16 @@
 // ======================================================
 static uint8_t s_frame[MATRIX_HEIGHT][MATRIX_WIDTH][3];
 static uint8_t s_gammaTable[256];
+
+static inline uint8_t Gamma(float v)
+{
+    if (v < 0.0f)
+        v = 0.0f;
+    else if (v > 255.0f)
+        v = 255.0f;
+
+    return s_gammaTable[(uint8_t)v];
+}
 // ======================================================
 // GAMMA
 // ======================================================
@@ -24,127 +34,112 @@ static void BuildGamma(void)
 	for (int i = 0; i < 256; i++)
     {
 		float x = (float)i / 255.0f;
-		s_gammaTable[i] = powf(x, 2.2f) * 210;
+		s_gammaTable[i] = powf(x, 2.1f) * 225;
     }
 }
 
 // ======================================================
-// INIT
+// INIT / CLEAR
 // ======================================================
+
 void VisualModes_Init(void)
 {
-	memset(s_frame, 0, sizeof(s_frame));
-	BuildGamma();
+    memset(s_frame, 0, sizeof(s_frame));
+    BuildGamma();
 }
 
-// ======================================================
-// CLEAR
-// ======================================================
 void VisualModes_Clear(void)
 {
-	memset(s_frame, 0, sizeof(s_frame));
+    memset(s_frame, 0, sizeof(s_frame));
 }
 
 // ======================================================
-// SPECTRUM CORE (FIXED)
+// SPECTRUM CORE
 // ======================================================
-static void DrawSpectrumTheme(uint8_t theme, const float *trail, const float *peakHold)
+static void DrawSpectrumTheme(
+    uint8_t theme,
+    const float *trail,
+    const float *peakHold)
 {
-	memset(s_frame, 0, sizeof(s_frame));
+    memset(s_frame, 0, sizeof(s_frame));
 
-	for (int x = 0; x < MATRIX_WIDTH; x++)
-	{
-		// =====================================================
-		// BAR HEIGHT
-		// =====================================================
-		int h = (int)(trail[x] + 0.5f);
-		if (h < 0) h = 0;
-		if (h > MATRIX_HEIGHT) h = MATRIX_HEIGHT;
+    for (int x = 0; x < MATRIX_WIDTH; x++)
+    {
+        // Bar height
+        int h = (int)(trail[x] + 0.5f);
 
-		// =====================================================
-		// DRAW BAR
-		// =====================================================
-		for (int y = 0; y < h; y++)
-		{
-			float t =
-				(float)y /
-				(float)(MATRIX_HEIGHT - 1);
+        if (h < 0) h = 0;
+        if (h > MATRIX_HEIGHT) h = MATRIX_HEIGHT;
 
-			float r, g, b;
+        // Draw spectrum bar
+        for (int y = 0; y < h; y++)
+        {
+            float t =
+                (float)y /
+                (float)(MATRIX_HEIGHT - 1);
 
-			VisualTheme_GetColor(
-				theme,
-				t,
-				&r, &g, &b);
+            float r, g, b;
 
-			// glow 제거된 순수 fill 방식 (예전 스타일 유지)
+            VisualTheme_GetColor(
+                theme,
+                t,
+                &r, &g, &b);
 
-			s_frame[y][x][0] =
-					s_gammaTable[(uint8_t)r];
+            s_frame[y][x][0] = Gamma(r);
+            s_frame[y][x][1] = Gamma(g);
+            s_frame[y][x][2] = Gamma(b);
+        }
 
-			s_frame[y][x][1] =
-					s_gammaTable[(uint8_t)g];
+        // Peak hold
+        int p = (int)(peakHold[x] + 0.5f);
 
-			s_frame[y][x][2] =
-					s_gammaTable[(uint8_t)b];
-		}
+        if (p >= 0 && p < MATRIX_HEIGHT)
+        {
+            float pr, pg, pb;
 
-		// =====================================================
-		// PEAK HOLD (SINGLE PIXEL)
-		// =====================================================
-		int p = (int)(peakHold[x] + 0.5f);
+            VisualTheme_GetPeakColor(
+                theme,
+                &pr, &pg, &pb);
 
-		if (p >= 0 && p < MATRIX_HEIGHT)
-		{
-			float pr, pg, pb;
-
-			VisualTheme_GetPeakColor(
-				theme,
-				&pr, &pg, &pb);
-
-			s_frame[p][x][0] =
-					s_gammaTable[(uint8_t)pr];
-
-			s_frame[p][x][1] =
-					s_gammaTable[(uint8_t)pg];
-
-			s_frame[p][x][2] =
-					s_gammaTable[(uint8_t)pb];
-		}
-	}
+            s_frame[p][x][0] = Gamma(pr);
+            s_frame[p][x][1] = Gamma(pg);
+            s_frame[p][x][2] = Gamma(pb);
+        }
+    }
 }
 
 // ======================================================
-// SPECTRUM 1~6
+// SPECTRUM THEMES
 // ======================================================
+
 void VisualModes_DrawSpectrum1(const float *trail, const float *peakHold)
 {
-	DrawSpectrumTheme(0, trail, peakHold);
+    DrawSpectrumTheme(0, trail, peakHold);
 }
 
 void VisualModes_DrawSpectrum2(const float *trail, const float *peakHold)
 {
-	DrawSpectrumTheme(1, trail, peakHold);
+    DrawSpectrumTheme(1, trail, peakHold);
 }
 
 void VisualModes_DrawSpectrum3(const float *trail, const float *peakHold)
 {
-	DrawSpectrumTheme(2, trail, peakHold);
+    DrawSpectrumTheme(2, trail, peakHold);
 }
 
 void VisualModes_DrawSpectrum4(const float *trail, const float *peakHold)
 {
-	DrawSpectrumTheme(3, trail, peakHold);
+    DrawSpectrumTheme(3, trail, peakHold);
 }
 
 void VisualModes_DrawSpectrum5(const float *trail, const float *peakHold)
 {
-	DrawSpectrumTheme(4, trail, peakHold);
+    DrawSpectrumTheme(4, trail, peakHold);
 }
 
 void VisualModes_DrawSpectrum6(const float *trail, const float *peakHold)
 {
-	DrawSpectrumTheme(5, trail, peakHold);
+    DrawSpectrumTheme(5, trail, peakHold);
 }
 
 // ==================================================
@@ -157,24 +152,26 @@ void VisualModes_DrawMirror_Full(const float *trail)
     for (int x = 0; x < MATRIX_WIDTH; x++)
     {
         int h = (int)(trail[x] + 0.5f);
+
         if (h > MATRIX_HEIGHT) h = MATRIX_HEIGHT;
         if (h < 0) h = 0;
 
         float r, g, b;
-        VisualTheme_GetMirrorColor(s_mirrorTheme, 1.0f, &r, &g, &b);
-        // ★ t=1 고정 → 단색화
 
-        uint8_t R = (uint8_t)r;
-        uint8_t G = (uint8_t)g;
-        uint8_t B = (uint8_t)b;
+        VisualTheme_GetMirrorColor(
+            s_mirrorTheme,
+            1.0f,
+            &r,
+            &g,
+            &b);
 
-        uint8_t cr = s_gammaTable[R];
-        uint8_t cg = s_gammaTable[G];
-        uint8_t cb = s_gammaTable[B];
+        uint8_t cr = Gamma(r);
+        uint8_t cg = Gamma(g);
+        uint8_t cb = Gamma(b);
 
         for (int y = 0; y < h; y++)
         {
-            int top = y;
+            int top    = y;
             int bottom = (MATRIX_HEIGHT - 1) - y;
 
             s_frame[top][x][0] = cr;
@@ -198,16 +195,22 @@ void VisualModes_DrawMirror_Center(const float *trail)
     const int halfH = MATRIX_HEIGHT / 2;
 
     float r, g, b;
-    VisualTheme_GetMirrorColor(s_mirrorTheme, 1.0f, &r, &g, &b);
-    // ★ 완전 단색
 
-    uint8_t cr = s_gammaTable[(uint8_t)r];
-    uint8_t cg = s_gammaTable[(uint8_t)g];
-    uint8_t cb = s_gammaTable[(uint8_t)b];
+    VisualTheme_GetMirrorColor(
+        s_mirrorTheme,
+        1.0f,
+        &r,
+        &g,
+        &b);
+
+    uint8_t cr = Gamma(r);
+    uint8_t cg = Gamma(g);
+    uint8_t cb = Gamma(b);
 
     for (int x = 0; x < MATRIX_WIDTH; x++)
     {
         int h = (int)(trail[x] + 0.5f);
+
         if (h > halfH) h = halfH;
         if (h < 0) h = 0;
 
@@ -238,44 +241,69 @@ void VisualModes_DrawMirror_Center(const float *trail)
 // ======================================================
 void VisualModes_DrawRainbow(const float *trail)
 {
-	memset(s_frame, 0, sizeof(s_frame));
+    memset(s_frame, 0, sizeof(s_frame));
 
-	static float hue = 0;
-	hue += 0.02f;
+    static float hue = 0.0f;
 
-	for (int x = 0; x < MATRIX_WIDTH; x++)
-	{
-		int h = (int)trail[x];
+    hue += 0.02f;
 
-		for (int y = 0; y < h; y++)
-		{
-			float t = fmodf(hue + x * 0.1f + y * 0.03f, 1.0f);
+    for (int x = 0; x < MATRIX_WIDTH; x++)
+    {
+        int h = (int)(trail[x] + 0.5f);
 
-			float r, g, b;
-			VisualTheme_GetColor(s_spectrumTheme, t, &r, &g, &b);
+        if (h < 0)
+            h = 0;
 
-			int yy = y;  // ★ 통일: flip 제거
+        if (h > MATRIX_HEIGHT)
+            h = MATRIX_HEIGHT;
 
-			s_frame[yy][x][0] = s_gammaTable[(uint8_t)r];
-			s_frame[yy][x][1] = s_gammaTable[(uint8_t)g];
-			s_frame[yy][x][2] = s_gammaTable[(uint8_t)b];
-		}
-	}
+        float wave =
+            sinf(
+                x * 0.25f +
+                hue * 3.0f);
+
+        for (int y = 0; y < h; y++)
+        {
+            float t =
+                fmodf(
+                    hue +
+                    x * 0.06f +
+                    wave * 0.15f +
+                    y * 0.03f,
+                    1.0f);
+
+            float r, g, b;
+
+            VisualTheme_GetColor(
+                s_spectrumTheme,
+                t,
+                &r,
+                &g,
+                &b);
+
+            s_frame[y][x][0] = Gamma(r);
+            s_frame[y][x][1] = Gamma(g);
+            s_frame[y][x][2] = Gamma(b);
+        }
+    }
 }
+
+// ======================================================
+// PULSE
+// ======================================================
 void VisualModes_DrawPulse(const float *trail)
 {
     memset(s_frame, 0, sizeof(s_frame));
 
     static float t_global = 0.0f;
 
-    // 내부에서 energy 계산 (FFT 기반 or 더미)
     float energy = 0.0f;
 
     for (int i = 0; i < MATRIX_WIDTH; i++)
         energy += trail[i];
 
     energy /= MATRIX_WIDTH;
-    energy = energy / (float)MATRIX_HEIGHT; // normalize
+    energy /= (float)MATRIX_HEIGHT;
 
     float speed = 0.02f + energy * 0.05f;
 
@@ -287,64 +315,304 @@ void VisualModes_DrawPulse(const float *trail)
     for (int x = 0; x < MATRIX_WIDTH; x++)
     {
         int h = (int)(trail[x] + 0.5f);
-        if (h > MATRIX_HEIGHT) h = MATRIX_HEIGHT;
+
+        if (h > MATRIX_HEIGHT)
+            h = MATRIX_HEIGHT;
 
         for (int y = 0; y < h; y++)
         {
-            float t = (float)y / (float)(MATRIX_HEIGHT - 1);
+            float t =
+                (float)y /
+                (float)(MATRIX_HEIGHT - 1);
 
             float r, g, b;
-            VisualTheme_GetColor(s_spectrumTheme, t, &r, &g, &b);
 
-            int R = (int)(r * pulse);
-            int G = (int)(g * pulse);
-            int B = (int)(b * pulse);
+            VisualTheme_GetColor(
+                s_spectrumTheme,
+                t,
+                &r,
+                &g,
+                &b);
 
-            if (R > 255) R = 255;
-            if (G > 255) G = 255;
-            if (B > 255) B = 255;
+            r *= pulse;
+            g *= pulse;
+            b *= pulse;
 
-            s_frame[y][x][0] = s_gammaTable[R];
-            s_frame[y][x][1] = s_gammaTable[G];
-            s_frame[y][x][2] = s_gammaTable[B];
+            s_frame[y][x][0] = Gamma(r);
+            s_frame[y][x][1] = Gamma(g);
+            s_frame[y][x][2] = Gamma(b);
         }
     }
 }
+
+// ======================================================
+// SPARK_NOISE
+// ======================================================
+void VisualModes_DrawSparkNoise(const float *trail, float time)
+{
+    memset(s_frame, 0, sizeof(s_frame));
+
+    for (int x = 0; x < MATRIX_WIDTH; x++)
+    {
+        float base = trail[x];
+
+        float wave =
+            sinf(time * 2.0f + x * 0.35f) * 2.5f +
+            sinf(time * 1.1f + x * 0.12f) * 1.5f;
+
+        float heightF = base + wave;
+
+        if (heightF < 0)
+            heightF = 0;
+
+        if (heightF > MATRIX_HEIGHT)
+            heightF = MATRIX_HEIGHT;
+
+        int height = (int)(heightF + 0.5f);
+
+        for (int y = 0; y < height; y++)
+        {
+            float t =
+                (float)y /
+                (float)(MATRIX_HEIGHT - 1);
+
+            float r, g, b;
+
+            VisualTheme_GetColor(
+                s_spectrumTheme,
+                t,
+                &r,
+                &g,
+                &b);
+
+            // =========================================
+            // NOISE
+            // =========================================
+            float n =
+                sinf(
+                    x * 12.9898f +
+                    y * 78.233f +
+                    time * 6.0f);
+
+            n = n - floorf(n);
+
+            float spark = 0.0f;
+
+            if (n > 0.88f)
+            {
+                spark = 2.0f;
+            }
+
+            // =========================================
+            // ENERGY
+            // =========================================
+            float energy =
+                0.6f +
+                0.4f *
+                sinf(time * 1.8f);
+
+            energy *= energy;
+
+            // =========================================
+            // BASE LIGHT
+            // =========================================
+            float baseLight = 0.72f;
+
+            float brightness =
+                baseLight *
+                (0.75f + 0.25f * energy);
+
+            // =========================================
+            // FINAL INTENSITY
+            // =========================================
+            float intensity =
+                brightness +
+                (spark * energy * 0.6f);
+
+            // =========================================
+            // APPLY COLOR
+            // =========================================
+            r *= intensity * 0.90f;
+            g *= intensity * 0.90f;
+            b *= intensity * 0.90f;
+
+            uint8_t rr = Gamma(r);
+            uint8_t gg = Gamma(g);
+            uint8_t bb = Gamma(b);
+
+            s_frame[y][x][0] = rr;
+            s_frame[y][x][1] = gg;
+            s_frame[y][x][2] = bb;
+
+            // =========================================
+            // SPARK BLEED
+            // =========================================
+            if (spark > 0.0f &&
+                y + 1 < MATRIX_HEIGHT)
+            {
+                s_frame[y + 1][x][0] = rr;
+                s_frame[y + 1][x][1] = gg;
+                s_frame[y + 1][x][2] = bb;
+            }
+        }
+    }
+}
+
+// ======================================================
+// GLITCH_GRID
+// ======================================================
+void VisualModes_DrawGlitchGrid(const float *trail, float time)
+{
+    memset(s_frame, 0, sizeof(s_frame));
+
+    for (int x = 0; x < MATRIX_WIDTH; x++)
+    {
+        float base = trail[x];
+
+        // =========================================
+        // NORMAL SIGNAL
+        // =========================================
+        int h = (int)(base + 0.5f);
+
+        if (h < 0)
+            h = 0;
+
+        if (h > MATRIX_HEIGHT)
+            h = MATRIX_HEIGHT;
+
+        for (int y = 0; y < h; y++)
+        {
+            float t =
+                (float)y /
+                (float)(MATRIX_HEIGHT - 1);
+
+            float r, g, b;
+
+            VisualTheme_GetColor(
+                s_spectrumTheme,
+                t,
+                &r,
+                &g,
+                &b);
+
+            // =========================================
+            // GLITCH NOISE
+            // =========================================
+            float n =
+                sinf(
+                    x * 91.17f +
+                    y * 57.31f +
+                    time * 12.0f);
+
+            n = n - floorf(n);
+
+            float glitch = 0.0f;
+
+            if (n > 0.93f)
+            {
+                glitch = 2.8f;
+            }
+
+            // =========================================
+            // SHIFT
+            // =========================================
+            float shift =
+                sinf(
+                    time * 4.0f +
+                    y * 0.6f) * 0.3f;
+
+            float intensity =
+                0.65f +
+                glitch +
+                shift;
+
+            // =========================================
+            // APPLY
+            // =========================================
+            r *= intensity;
+            g *= intensity;
+            b *= intensity;
+
+            uint8_t rr = Gamma(r);
+            uint8_t gg = Gamma(g);
+            uint8_t bb = Gamma(b);
+
+            // =========================================
+            // RANDOM MEMORY CORRUPTION
+            // =========================================
+            if (glitch > 0.0f &&
+                (y % 3 == 0))
+            {
+                int y2 =
+                    y +
+                    (int)(
+                        sinf(time * 10.0f) * 2.0f);
+
+                if (y2 >= 0 &&
+                    y2 < MATRIX_HEIGHT)
+                {
+                    s_frame[y2][x][0] = rr;
+                    s_frame[y2][x][1] = gg;
+                    s_frame[y2][x][2] = bb;
+                }
+            }
+
+            s_frame[y][x][0] = rr;
+            s_frame[y][x][1] = gg;
+            s_frame[y][x][2] = bb;
+        }
+    }
+}
+
+// ======================================================
+// GRID_BREATH
+// ======================================================
 void VisualModes_DrawGridBreath(const float *trail, float time)
 {
-	memset(s_frame, 0, sizeof(s_frame));
+    memset(s_frame, 0, sizeof(s_frame));
 
-	    float breath = 0.5f + 0.5f * sinf(time * 1.5f);
-	    breath *= breath;
+    float breath =
+        0.5f +
+        0.5f * sinf(time * 1.5f);
 
-	    for (int y = 0; y < MATRIX_HEIGHT; y++)
-	    {
-	        for (int x = 0; x < MATRIX_WIDTH; x++)
-	        {
-	            float noise =
-	                sinf(x * 0.8f + time) *
-	                cosf(y * 0.7f + time);
+    breath *= breath;
 
-	            float v = (noise + 1.0f) * 0.5f * breath;
+    for (int y = 0; y < MATRIX_HEIGHT; y++)
+    {
+        for (int x = 0; x < MATRIX_WIDTH; x++)
+        {
+            float noise =
+                sinf(x * 0.8f + time) *
+                cosf(y * 0.7f + time);
 
-	            float r, g, b;
-	            VisualTheme_GetColor(s_spectrumTheme, v, &r, &g, &b);
+            float v =
+                (noise + 1.0f) *
+                0.5f *
+                breath;
 
-	            r *= 0.6f;
-	            g *= 0.6f;
-	            b *= 0.6f;
+            float r, g, b;
 
-	            uint8_t rr = s_gammaTable[(uint8_t)r];
-	            uint8_t gg = s_gammaTable[(uint8_t)g];
-	            uint8_t bb = s_gammaTable[(uint8_t)b];
+            VisualTheme_GetColor(
+                s_spectrumTheme,
+                v,
+                &r,
+                &g,
+                &b);
 
-	            s_frame[y][x][0] = rr;
-	            s_frame[y][x][1] = gg;
-	            s_frame[y][x][2] = bb;
+            r *= 0.6f;
+            g *= 0.6f;
+            b *= 0.6f;
+
+            s_frame[y][x][0] = Gamma(r);
+            s_frame[y][x][1] = Gamma(g);
+            s_frame[y][x][2] = Gamma(b);
         }
     }
 }
 
+// ======================================================
+// ROTATING_FIELD
+// ======================================================
 void VisualModes_DrawRotatingField(const float *trail, float time)
 {
     memset(s_frame, 0, sizeof(s_frame));
@@ -361,197 +629,42 @@ void VisualModes_DrawRotatingField(const float *trail, float time)
             float dx = x - cx;
             float dy = y - cy;
 
-            float rx = dx * cosf(angle) - dy * sinf(angle);
-            float ry = dx * sinf(angle) + dy * cosf(angle);
+            float rx =
+                dx * cosf(angle) -
+                dy * sinf(angle);
 
-            float v = sinf(rx * 0.3f) + cosf(ry * 0.3f);
+            float ry =
+                dx * sinf(angle) +
+                dy * cosf(angle);
+
+            float v =
+                sinf(rx * 0.3f) +
+                cosf(ry * 0.3f);
+
             v = (v + 2.0f) / 4.0f;
 
             float r, g, b;
-            VisualTheme_GetColor(s_spectrumTheme, v, &r, &g, &b);
 
-            uint8_t rr = s_gammaTable[(uint8_t)r];
-            uint8_t gg = s_gammaTable[(uint8_t)g];
-            uint8_t bb = s_gammaTable[(uint8_t)b];
+            VisualTheme_GetColor(
+                s_spectrumTheme,
+                v,
+                &r,
+                &g,
+                &b);
 
-            s_frame[y][x][0] = rr;
-            s_frame[y][x][1] = gg;
-            s_frame[y][x][2] = bb;
+            s_frame[y][x][0] = Gamma(r);
+            s_frame[y][x][1] = Gamma(g);
+            s_frame[y][x][2] = Gamma(b);
         }
     }
 }
 
-void VisualModes_DrawSparkNoise(const float *trail, float time)
-{
-    memset(s_frame, 0, sizeof(s_frame));
-
-    for (int x = 0; x < MATRIX_WIDTH; x++)
-    {
-        float base = trail[x];
-
-        float wave =
-            sinf(time * 2.0f + x * 0.35f) * 2.5f +
-            sinf(time * 1.1f + x * 0.12f) * 1.5f;
-
-        float heightF = base + wave;
-
-        if (heightF < 0) heightF = 0;
-        if (heightF > MATRIX_HEIGHT) heightF = MATRIX_HEIGHT;
-
-        int height = (int)(heightF + 0.5f);
-
-        for (int y = 0; y < height; y++)
-        {
-            float t = (float)y / (float)(MATRIX_HEIGHT - 1);
-
-            float r, g, b;
-            VisualTheme_GetColor(s_spectrumTheme, t, &r, &g, &b);
-
-            // =========================================
-            // NOISE (스파이크 약하게)
-            // =========================================
-            float n =
-                sinf(x * 12.9898f + y * 78.233f + time * 6.0f);
-
-            n = n - floorf(n);
-
-            float spark = 0.0f;
-            if (n > 0.88f)   // ← 확률 낮춤 (덜 튐)
-            {
-                spark = 2.0f; // ← 강도 감소
-            }
-
-            // =========================================
-            // ENERGY
-            // =========================================
-            float energy = 0.6f + 0.4f * sinf(time * 1.8f);
-            energy *= energy;
-
-            // =========================================
-            // BASE LIGHT (전체 밝기 증가)
-            // =========================================
-            float baseLight = 0.72f;   // ↑ 전체 밝기 크게 증가
-
-            float base = baseLight * (0.75f + 0.25f * energy);
-
-            // =========================================
-            // FINAL INTENSITY
-            // =========================================
-            float intensity = base + (spark * energy * 0.6f); // ← 스파크 영향 감소
-
-            // =========================================
-            // APPLY COLOR
-            // =========================================
-            r *= intensity * 0.90f;
-            g *= intensity * 0.90f;
-            b *= intensity * 0.90f;
-
-            if (r > 255.0f) r = 255.0f;
-            if (g > 255.0f) g = 255.0f;
-            if (b > 255.0f) b = 255.0f;
-
-            uint8_t rr = s_gammaTable[(uint8_t)r];
-            uint8_t gg = s_gammaTable[(uint8_t)g];
-            uint8_t bb = s_gammaTable[(uint8_t)b];
-
-            s_frame[y][x][0] = rr;
-            s_frame[y][x][1] = gg;
-            s_frame[y][x][2] = bb;
-
-            // =========================================
-            // SPARK BLEED (약하게 유지)
-            // =========================================
-            if (spark > 0.0f && y + 1 < MATRIX_HEIGHT)
-            {
-                s_frame[y + 1][x][0] = rr;
-                s_frame[y + 1][x][1] = gg;
-                s_frame[y + 1][x][2] = bb;
-            }
-        }
-    }
-}
-
-void VisualModes_DrawGlitchGrid(const float *trail, float time)
-{
-    memset(s_frame, 0, sizeof(s_frame));
-
-    for (int x = 0; x < MATRIX_WIDTH; x++)
-    {
-        float base = trail[x];
-
-        // =========================================
-        // NORMAL SIGNAL
-        // =========================================
-        int h = (int)(base + 0.5f);
-        if (h < 0) h = 0;
-        if (h > MATRIX_HEIGHT) h = MATRIX_HEIGHT;
-
-        for (int y = 0; y < h; y++)
-        {
-            float t = (float)y / (float)(MATRIX_HEIGHT - 1);
-
-            float r, g, b;
-            VisualTheme_GetColor(s_spectrumTheme, t, &r, &g, &b);
-
-            // =========================================
-            // GLITCH NOISE (확률 기반 붕괴)
-            // =========================================
-            float n =
-                sinf(x * 91.17f + y * 57.31f + time * 12.0f);
-
-            n = n - floorf(n);
-
-            float glitch = 0.0f;
-
-            // 낮은 확률 = 강한 깨짐
-            if (n > 0.93f)
-            {
-                glitch = 2.8f;
-            }
-
-            // =========================================
-            // ROW / COLUMN SHIFT 느낌
-            // =========================================
-            float shift =
-                sinf(time * 4.0f + y * 0.6f) * 0.3f;
-
-            float intensity = 0.65f + glitch + shift;
-
-            r *= intensity;
-            g *= intensity;
-            b *= intensity;
-
-            if (r > 255) r = 255;
-            if (g > 255) g = 255;
-            if (b > 255) b = 255;
-
-            uint8_t rr = s_gammaTable[(uint8_t)r];
-            uint8_t gg = s_gammaTable[(uint8_t)g];
-            uint8_t bb = s_gammaTable[(uint8_t)b];
-
-            // =========================================
-            // RANDOM MEMORY CORRUPTION STYLE
-            // =========================================
-            if (glitch > 0.0f && (y % 3 == 0))
-            {
-                int y2 = y + (int)(sinf(time * 10.0f) * 2.0f);
-
-                if (y2 >= 0 && y2 < MATRIX_HEIGHT)
-                {
-                    s_frame[y2][x][0] = rr;
-                    s_frame[y2][x][1] = gg;
-                    s_frame[y2][x][2] = bb;
-                }
-            }
-
-            s_frame[y][x][0] = rr;
-            s_frame[y][x][1] = gg;
-            s_frame[y][x][2] = bb;
-        }
-    }
-}
-
-void VisualModes_DrawPlasma(const float *trail, float time)
+// ======================================================
+// PLASMA
+// ======================================================
+void VisualModes_DrawPlasma(
+    const float *trail,
+    float time)
 {
     memset(s_frame, 0, sizeof(s_frame));
 
@@ -569,11 +682,11 @@ void VisualModes_DrawPlasma(const float *trail, float time)
     energy /= MATRIX_HEIGHT;
 
     // =========================================
-    // SLOW MOTION (눈 안 아프게 튜닝)
+    // MOTION
     // =========================================
     float motion =
-        0.35f +
-        energy * 0.45f;
+        0.30f +
+        energy * 0.50f;
 
     // =========================================
     // PLASMA FIELD
@@ -586,26 +699,48 @@ void VisualModes_DrawPlasma(const float *trail, float time)
             float fy = (float)y;
 
             // =====================================
-            // LARGE / SOFT WAVES
+            // AUDIO DISTORTION
+            // =====================================
+            fx +=
+                sinf(
+                    fy * 0.35f +
+                    time * 0.8f)
+                * energy
+                * 2.0f;
+
+            fy +=
+                cosf(
+                    fx * 0.25f +
+                    time * 0.6f)
+                * energy
+                * 1.5f;
+
+            // =====================================
+            // WAVE 1
             // =====================================
             float v1 =
                 sinf(
                     fx * 0.22f +
                     time * 0.45f * motion);
 
+            // =====================================
+            // WAVE 2
+            // =====================================
             float v2 =
                 sinf(
                     fy * 0.22f +
                     time * 0.40f * motion);
 
             // =====================================
-            // CENTER RADIAL WAVE
+            // RADIAL
             // =====================================
             float dx =
-                fx - MATRIX_WIDTH * 0.5f;
+                fx -
+                MATRIX_WIDTH * 0.5f;
 
             float dy =
-                fy - MATRIX_HEIGHT * 0.5f;
+                fy -
+                MATRIX_HEIGHT * 0.5f;
 
             float dist =
                 sqrtf(dx * dx + dy * dy);
@@ -616,20 +751,36 @@ void VisualModes_DrawPlasma(const float *trail, float time)
                     time * 0.65f * motion);
 
             // =====================================
+            // LARGE FLOW
+            // =====================================
+            float flow =
+                sinf(
+                    fx * 0.05f +
+                    fy * 0.03f +
+                    time * 0.18f);
+
+            // =====================================
             // COMBINE
             // =====================================
             float plasma =
-                (v1 + v2 + v3) / 3.0f;
+                (
+                    v1 +
+                    v2 +
+                    v3 +
+                    flow
+                ) * 0.25f;
 
             plasma =
-                0.5f + plasma * 0.5f;
+                0.5f +
+                plasma * 0.5f;
 
             // =====================================
             // BRIGHTNESS
             // =====================================
             float brightness =
-                0.18f +
-                plasma * (0.55f + energy * 0.35f);
+                0.15f +
+                plasma *
+                (0.65f + energy * 0.45f);
 
             // =====================================
             // COLOR FLOW
@@ -637,7 +788,7 @@ void VisualModes_DrawPlasma(const float *trail, float time)
             float colorT =
                 fmodf(
                     plasma +
-                    time * 0.015f,
+                    time * 0.008f,
                     1.0f);
 
             float r, g, b;
@@ -645,9 +796,7 @@ void VisualModes_DrawPlasma(const float *trail, float time)
             VisualTheme_GetColor(
                 s_spectrumTheme,
                 colorT,
-                &r,
-                &g,
-                &b);
+                &r, &g, &b);
 
             // =====================================
             // APPLY BRIGHTNESS
@@ -657,44 +806,50 @@ void VisualModes_DrawPlasma(const float *trail, float time)
             b *= brightness;
 
             // =====================================
-            // SOFT HIGHLIGHT
+            // LIQUID HIGHLIGHT
             // =====================================
-            if (plasma > 0.82f)
-            {
-                r *= 1.12f;
-                g *= 1.12f;
-                b *= 1.12f;
-            }
+            float shine =
+                plasma * plasma;
+
+            r *=
+                0.90f +
+                shine * 0.40f;
+
+            g *=
+                0.90f +
+                shine * 0.40f;
+
+            b *=
+                0.90f +
+                shine * 0.40f;
 
             // =====================================
-            // CLAMP
+            // EXTRA GLOW
             // =====================================
-            if (r > 255.0f) r = 255.0f;
-            if (g > 255.0f) g = 255.0f;
-            if (b > 255.0f) b = 255.0f;
+            if (plasma > 0.80f)
+            {
+                r *= 1.15f;
+                g *= 1.15f;
+                b *= 1.15f;
+            }
 
             // =====================================
             // GAMMA
             // =====================================
-            s_frame[y][x][0] =
-                s_gammaTable[(uint8_t)r];
-
-            s_frame[y][x][1] =
-                s_gammaTable[(uint8_t)g];
-
-            s_frame[y][x][2] =
-                s_gammaTable[(uint8_t)b];
+            s_frame[y][x][0] = Gamma(r);
+            s_frame[y][x][1] = Gamma(g);
+            s_frame[y][x][2] = Gamma(b);
         }
     }
 }
 
+// ======================================================
+// MULTI_ORBIT
+// ======================================================
 void VisualModes_DrawMultiOrbit(const float *trail, float time)
 {
     memset(s_frame, 0, sizeof(s_frame));
 
-    // =========================================
-    // ENERGY
-    // =========================================
     float energy = 0.0f;
 
     for (int i = 0; i < MATRIX_WIDTH; i++)
@@ -703,15 +858,9 @@ void VisualModes_DrawMultiOrbit(const float *trail, float time)
     energy /= MATRIX_WIDTH;
     energy /= MATRIX_HEIGHT;
 
-    // =========================================
-    // CENTER
-    // =========================================
     float cx = MATRIX_WIDTH  * 0.5f;
     float cy = MATRIX_HEIGHT * 0.5f;
 
-    // =========================================
-    // 3 ORBIT LAYERS
-    // =========================================
     for (int layer = 0; layer < 3; layer++)
     {
         int particleCount =
@@ -725,21 +874,14 @@ void VisualModes_DrawMultiOrbit(const float *trail, float time)
 
         for (int i = 0; i < particleCount; i++)
         {
-            // ---------------------------------
-            // orbit angle
-            // ---------------------------------
             float angle =
                 time * speed +
                 i * (6.28318f / particleCount);
 
-            // ---------------------------------
-            // dynamic radius
-            // ---------------------------------
             float radius =
                 baseRadius +
                 energy * (1.5f + layer);
 
-            // slight wobble
             radius +=
                 sinf(time * 1.2f + i)
                 * 0.6f;
@@ -759,9 +901,6 @@ void VisualModes_DrawMultiOrbit(const float *trail, float time)
             if (y < 0 || y >= MATRIX_HEIGHT)
                 continue;
 
-            // =================================
-            // COLOR
-            // =================================
             float t =
                 ((float)i / particleCount)
                 + layer * 0.2f;
@@ -778,9 +917,6 @@ void VisualModes_DrawMultiOrbit(const float *trail, float time)
                 &g,
                 &b);
 
-            // ---------------------------------
-            // glow
-            // ---------------------------------
             float glow =
                 0.6f +
                 0.4f *
@@ -793,18 +929,9 @@ void VisualModes_DrawMultiOrbit(const float *trail, float time)
             g *= glow;
             b *= glow;
 
-            if (r > 255.0f) r = 255.0f;
-            if (g > 255.0f) g = 255.0f;
-            if (b > 255.0f) b = 255.0f;
-
-            uint8_t rr =
-                s_gammaTable[(uint8_t)r];
-
-            uint8_t gg =
-                s_gammaTable[(uint8_t)g];
-
-            uint8_t bb =
-                s_gammaTable[(uint8_t)b];
+            uint8_t rr = Gamma(r);
+            uint8_t gg = Gamma(g);
+            uint8_t bb = Gamma(b);
 
             // =================================
             // CORE PIXEL
@@ -833,13 +960,13 @@ void VisualModes_DrawMultiOrbit(const float *trail, float time)
     }
 }
 
+// ======================================================
+// HEX
+// ======================================================
 void VisualModes_DrawHexGrid(const float *trail, float time)
 {
     memset(s_frame, 0, sizeof(s_frame));
 
-    // =========================================
-    // AUDIO ENERGY
-    // =========================================
     float energy = 0.0f;
 
     for (int i = 0; i < MATRIX_WIDTH; i++)
@@ -848,24 +975,15 @@ void VisualModes_DrawHexGrid(const float *trail, float time)
     energy /= MATRIX_WIDTH;
     energy /= MATRIX_HEIGHT;
 
-    // =========================================
-    // GRID
-    // =========================================
     for (int y = 0; y < MATRIX_HEIGHT; y++)
     {
         for (int x = 0; x < MATRIX_WIDTH; x++)
         {
-            // ---------------------------------
-            // staggered hex coord
-            // ---------------------------------
             float xx =
                 x + ((y & 1) ? 0.5f : 0.0f);
 
             float yy = y * 0.85f;
 
-            // ---------------------------------
-            // wave propagation
-            // ---------------------------------
             float d1 =
                 sqrtf(
                     (xx - 4.0f) * (xx - 4.0f) +
@@ -882,13 +1000,9 @@ void VisualModes_DrawHexGrid(const float *trail, float time)
 
             wave *= 0.5f;
 
-            // ---------------------------------
-            // normalize
-            // ---------------------------------
             float t =
                 0.5f + 0.5f * wave;
 
-            // audio reactive
             t *=
                 0.45f +
                 energy * 1.4f;
@@ -896,9 +1010,6 @@ void VisualModes_DrawHexGrid(const float *trail, float time)
             if (t > 1.0f)
                 t = 1.0f;
 
-            // =================================
-            // COLOR
-            // =================================
             float r, g, b;
 
             VisualTheme_GetColor(
@@ -908,9 +1019,6 @@ void VisualModes_DrawHexGrid(const float *trail, float time)
                 &g,
                 &b);
 
-            // =================================
-            // CELL PULSE
-            // =================================
             float pulse =
                 0.75f +
                 0.25f *
@@ -920,22 +1028,16 @@ void VisualModes_DrawHexGrid(const float *trail, float time)
             g *= pulse;
             b *= pulse;
 
-            if (r > 255.0f) r = 255.0f;
-            if (g > 255.0f) g = 255.0f;
-            if (b > 255.0f) b = 255.0f;
-
-            s_frame[y][x][0] =
-                s_gammaTable[(uint8_t)r];
-
-            s_frame[y][x][1] =
-                s_gammaTable[(uint8_t)g];
-
-            s_frame[y][x][2] =
-                s_gammaTable[(uint8_t)b];
+            s_frame[y][x][0] = Gamma(r);
+            s_frame[y][x][1] = Gamma(g);
+            s_frame[y][x][2] = Gamma(b);
         }
     }
 }
 
+// ======================================================
+// LASER
+// ======================================================
 void VisualModes_DrawLaserScan(const float *trail, float time)
 {
     static float decay[MATRIX_HEIGHT][MATRIX_WIDTH];
@@ -952,13 +1054,13 @@ void VisualModes_DrawLaserScan(const float *trail, float time)
     energy /= MATRIX_HEIGHT;
 
     // =========================================
-    // FADE OLD FRAME
+    // FADE
     // =========================================
     for (int y = 0; y < MATRIX_HEIGHT; y++)
     {
         for (int x = 0; x < MATRIX_WIDTH; x++)
         {
-            decay[y][x] *= 0.90f;
+            decay[y][x] *= 0.93f;
 
             if (decay[y][x] < 0.01f)
                 decay[y][x] = 0.0f;
@@ -966,16 +1068,18 @@ void VisualModes_DrawLaserScan(const float *trail, float time)
     }
 
     // =========================================
-    // MULTI LASER
+    // LASER BEAMS
     // =========================================
-    for (int beam = 0; beam < 4; beam++)
+    for (int beam = 0; beam < 6; beam++)
     {
         float speed =
-            1.0f + beam * 0.45f;
+            0.8f +
+            beam * 0.25f +
+            energy * 1.2f;
 
         float angle =
             time * speed +
-            beam * 1.57f;
+            beam * (6.28318f / 6.0f);
 
         float sx =
             MATRIX_WIDTH * 0.5f;
@@ -986,8 +1090,7 @@ void VisualModes_DrawLaserScan(const float *trail, float time)
         float dx = cosf(angle);
         float dy = sinf(angle);
 
-        // beam length
-        for (float t = 0; t < 12.0f; t += 0.25f)
+        for (float t = 0.0f; t < 14.0f; t += 0.20f)
         {
             int x =
                 (int)(sx + dx * t);
@@ -1001,12 +1104,11 @@ void VisualModes_DrawLaserScan(const float *trail, float time)
             if (y < 0 || y >= MATRIX_HEIGHT)
                 continue;
 
-            // stronger center
             float power =
-                1.0f - (t / 12.0f);
+                (1.0f - t / 14.0f);
 
             power *=
-                0.6f + energy * 1.2f;
+                (0.7f + energy * 1.5f);
 
             if (power > decay[y][x])
                 decay[y][x] = power;
@@ -1020,71 +1122,155 @@ void VisualModes_DrawLaserScan(const float *trail, float time)
     {
         for (int x = 0; x < MATRIX_WIDTH; x++)
         {
-            float t = decay[y][x];
+            float v = decay[y][x];
 
+            if (v <= 0.0f)
+                continue;
+
+            // ---------------------------------
+            // CYBER LASER COLOR
+            // ---------------------------------
             float r, g, b;
 
-            VisualTheme_GetColor(
-                s_spectrumTheme,
-                t,
+            VisualTheme_GetMirrorColor(
+                s_mirrorTheme,
+                1.0f,
                 &r,
                 &g,
                 &b);
 
-            // laser sharpness
-            r *= 1.2f;
-            g *= 1.2f;
-            b *= 1.2f;
+            r *= v * 1.4f;
+            g *= v * 1.4f;
+            b *= v * 1.4f;
 
-            if (r > 255.0f) r = 255.0f;
-            if (g > 255.0f) g = 255.0f;
-            if (b > 255.0f) b = 255.0f;
+            uint8_t rr = Gamma(r);
+            uint8_t gg = Gamma(g);
+            uint8_t bb = Gamma(b);
 
-            s_frame[y][x][0] =
-                s_gammaTable[(uint8_t)r];
+            s_frame[y][x][0] = rr;
+            s_frame[y][x][1] = gg;
+            s_frame[y][x][2] = bb;
 
-            s_frame[y][x][1] =
-                s_gammaTable[(uint8_t)g];
+            // =================================
+            // BLOOM
+            // =================================
+            if (v > 0.55f)
+            {
+                if (x + 1 < MATRIX_WIDTH)
+                {
+                    s_frame[y][x + 1][0] = rr / 3;
+                    s_frame[y][x + 1][1] = gg / 3;
+                    s_frame[y][x + 1][2] = bb / 3;
+                }
 
-            s_frame[y][x][2] =
-                s_gammaTable[(uint8_t)b];
+                if (y + 1 < MATRIX_HEIGHT)
+                {
+                    s_frame[y + 1][x][0] = rr / 3;
+                    s_frame[y + 1][x][1] = gg / 3;
+                    s_frame[y + 1][x][2] = bb / 3;
+                }
+            }
         }
     }
 }
 
 // ======================================================
-// WATERUP (FIXED COLOR)
+// WATERUP
 // ======================================================
 void VisualModes_DrawWaterup(const float *trail)
 {
-	static uint8_t waterfall[MATRIX_HEIGHT][MATRIX_WIDTH][3];
+    static uint8_t waterfall[MATRIX_HEIGHT][MATRIX_WIDTH][3];
+    static uint8_t blur[MATRIX_HEIGHT][MATRIX_WIDTH][3];
 
-	for (int y = MATRIX_HEIGHT - 1; y > 0; y--)
-		memcpy(waterfall[y], waterfall[y - 1], MATRIX_WIDTH * 3);
+    // =====================================
+    // SHIFT + FADE
+    // =====================================
+    for (int y = MATRIX_HEIGHT - 1; y > 0; y--)
+    {
+        for (int x = 0; x < MATRIX_WIDTH; x++)
+        {
+            waterfall[y][x][0] =
+                (uint8_t)(waterfall[y - 1][x][0] * 0.94f);
 
-	for (int x = 0; x < MATRIX_WIDTH; x++)
-	{
-		int h = (int)(trail[x]);
+            waterfall[y][x][1] =
+                (uint8_t)(waterfall[y - 1][x][1] * 0.94f);
 
-		float t = (float)h / (float)MATRIX_HEIGHT;
+            waterfall[y][x][2] =
+                (uint8_t)(waterfall[y - 1][x][2] * 0.94f);
+        }
+    }
 
-		float r,g,b;
+    // =====================================
+    // NEW TOP LINE
+    // =====================================
+    for (int x = 0; x < MATRIX_WIDTH; x++)
+    {
+        int h = (int)trail[x];
 
-		VisualTheme_GetColor(s_spectrumTheme, t, &r, &g, &b);
+        float t =
+            (float)h /
+            (float)MATRIX_HEIGHT;
 
-		waterfall[0][x][0] = s_gammaTable[(uint8_t)r];
-		waterfall[0][x][1] = s_gammaTable[(uint8_t)g];
-		waterfall[0][x][2] = s_gammaTable[(uint8_t)b];
-	}
+        float r, g, b;
 
-	memcpy(s_frame, waterfall, sizeof(s_frame));
+        VisualTheme_GetColor(
+            s_spectrumTheme,
+            t,
+            &r,
+            &g,
+            &b);
+
+        waterfall[0][x][0] = Gamma(r);
+        waterfall[0][x][1] = Gamma(g);
+        waterfall[0][x][2] = Gamma(b);
+    }
+
+    // =====================================
+    // VERTICAL BLUR
+    // =====================================
+    memcpy(
+        blur[0],
+        waterfall[0],
+        MATRIX_WIDTH * 3);
+
+    memcpy(
+        blur[MATRIX_HEIGHT - 1],
+        waterfall[MATRIX_HEIGHT - 1],
+        MATRIX_WIDTH * 3);
+
+    for (int y = 1; y < MATRIX_HEIGHT - 1; y++)
+    {
+        for (int x = 0; x < MATRIX_WIDTH; x++)
+        {
+            blur[y][x][0] =
+                (waterfall[y - 1][x][0]
+                + waterfall[y][x][0] * 2
+                + waterfall[y + 1][x][0]) / 4;
+
+            blur[y][x][1] =
+                (waterfall[y - 1][x][1]
+                + waterfall[y][x][1] * 2
+                + waterfall[y + 1][x][1]) / 4;
+
+            blur[y][x][2] =
+                (waterfall[y - 1][x][2]
+                + waterfall[y][x][2] * 2
+                + waterfall[y + 1][x][2]) / 4;
+        }
+    }
+
+    // =====================================
+    // OUTPUT
+    // =====================================
+    memcpy(
+        s_frame,
+        blur,
+        sizeof(s_frame));
 }
 
 // ======================================================
-// MULTI SHOCKWAVE MODE
-// Product Grade Ripple Engine
+// SHOCKWAVE
 // ======================================================
-
 typedef struct
 {
     float radius;
@@ -1093,9 +1279,11 @@ typedef struct
 
 } Shockwave_t;
 
-#define MAX_SHOCKWAVES  6
+#define MAX_SHOCKWAVES 6
 
-void VisualModes_DrawShockwave(const float *trail, float time)
+void VisualModes_DrawShockwave(
+    const float *trail,
+    float time)
 {
     static Shockwave_t waves[MAX_SHOCKWAVES];
 
@@ -1106,7 +1294,7 @@ void VisualModes_DrawShockwave(const float *trail, float time)
     // ==================================================
     float energy = 0.0f;
 
-    for (int i = 0; i < MATRIX_WIDTH; i++)
+    for(int i=0;i<MATRIX_WIDTH;i++)
     {
         energy += trail[i];
     }
@@ -1121,23 +1309,26 @@ void VisualModes_DrawShockwave(const float *trail, float time)
 
     beatCooldown -= 0.016f;
 
-    if (beatCooldown < 0.0f)
+    if(beatCooldown < 0.0f)
         beatCooldown = 0.0f;
 
-    // 일정 energy 넘으면 새 shockwave 생성
-    if (energy > 0.18f && beatCooldown <= 0.0f)
+    if(energy > 0.18f &&
+       beatCooldown <= 0.0f)
     {
-        for (int i = 0; i < MAX_SHOCKWAVES; i++)
+        for(int i=0;i<MAX_SHOCKWAVES;i++)
         {
-            if (!waves[i].active)
+            if(!waves[i].active)
             {
                 waves[i].active = 1;
 
                 waves[i].radius = 0.0f;
 
+                // ==========================
+                // POWER 강화
+                // ==========================
                 waves[i].power =
-                    1.2f +
-                    energy * 2.5f;
+                    1.5f +
+                    energy * 4.0f;
 
                 beatCooldown = 0.18f;
 
@@ -1149,28 +1340,28 @@ void VisualModes_DrawShockwave(const float *trail, float time)
     // ==================================================
     // CENTER
     // ==================================================
-    float cx = MATRIX_WIDTH  * 0.5f;
-    float cy = MATRIX_HEIGHT * 0.5f;
+    float cx =
+        MATRIX_WIDTH * 0.5f;
+
+    float cy =
+        MATRIX_HEIGHT * 0.5f;
 
     // ==================================================
     // UPDATE WAVES
     // ==================================================
-    for (int i = 0; i < MAX_SHOCKWAVES; i++)
+    for(int i=0;i<MAX_SHOCKWAVES;i++)
     {
-        if (!waves[i].active)
+        if(!waves[i].active)
             continue;
 
-        // expand
         waves[i].radius +=
             0.30f +
-            energy * 0.7f;
+            energy * 0.70f;
 
-        // decay
         waves[i].power *= 0.985f;
 
-        // deactivate
-        if (waves[i].radius > 20.0f ||
-            waves[i].power  < 0.05f)
+        if(waves[i].radius > 20.0f ||
+           waves[i].power  < 0.05f)
         {
             waves[i].active = 0;
         }
@@ -1179,24 +1370,27 @@ void VisualModes_DrawShockwave(const float *trail, float time)
     // ==================================================
     // DRAW FIELD
     // ==================================================
-    for (int y = 0; y < MATRIX_HEIGHT; y++)
+    for(int y=0;y<MATRIX_HEIGHT;y++)
     {
-        for (int x = 0; x < MATRIX_WIDTH; x++)
+        for(int x=0;x<MATRIX_WIDTH;x++)
         {
-            float dx = x - cx;
-            float dy = y - cy;
+            float dx =
+                x - cx;
+
+            float dy =
+                y - cy;
 
             float dist =
-                sqrtf(dx * dx + dy * dy);
+                sqrtf(dx*dx + dy*dy);
 
             float brightness = 0.0f;
 
             // ==========================================
-            // ACCUMULATE WAVES
+            // SHOCKWAVE RINGS
             // ==========================================
-            for (int i = 0; i < MAX_SHOCKWAVES; i++)
+            for(int i=0;i<MAX_SHOCKWAVES;i++)
             {
-                if (!waves[i].active)
+                if(!waves[i].active)
                     continue;
 
                 float d =
@@ -1204,15 +1398,12 @@ void VisualModes_DrawShockwave(const float *trail, float time)
                         dist -
                         waves[i].radius);
 
-                // thick wave
+                // ==============================
+                // TAIL RING
+                // ==============================
                 float ring =
-                    1.0f -
-                    (d / 3.2f);
-
-                if (ring < 0.0f)
-                    ring = 0.0f;
-
-                ring *= ring;
+                    expf(
+                        -d * 0.55f);
 
                 brightness +=
                     ring *
@@ -1220,20 +1411,24 @@ void VisualModes_DrawShockwave(const float *trail, float time)
             }
 
             // ==========================================
-            // CENTER GLOW
+            // CENTER CORE
             // ==========================================
-            float center =
+            float centerGlow =
                 1.0f -
-                (dist / 8.0f);
+                (dist / 5.0f);
 
-            if (center < 0.0f)
-                center = 0.0f;
+            if(centerGlow < 0.0f)
+                centerGlow = 0.0f;
 
-            brightness +=
-                center * 0.06f;
+            centerGlow *= centerGlow;
+            centerGlow *= 0.35f;
 
-            // clamp
-            if (brightness > 2.0f)
+            brightness += centerGlow;
+
+            // ==========================================
+            // CLAMP
+            // ==========================================
+            if(brightness > 2.0f)
                 brightness = 2.0f;
 
             // ==========================================
@@ -1241,18 +1436,16 @@ void VisualModes_DrawShockwave(const float *trail, float time)
             // ==========================================
             float colorT =
                 fmodf(
-                    dist * 0.10f +
-                    time * 0.02f,
+                    dist * 0.06f +
+                    time * 0.01f,
                     1.0f);
 
-            float r, g, b;
+            float r,g,b;
 
             VisualTheme_GetColor(
                 s_spectrumTheme,
                 colorT,
-                &r,
-                &g,
-                &b);
+                &r,&g,&b);
 
             // ==========================================
             // APPLY
@@ -1261,27 +1454,16 @@ void VisualModes_DrawShockwave(const float *trail, float time)
             g *= brightness;
             b *= brightness;
 
-            // wave highlight
-            if (brightness > 1.0f)
+            if(brightness > 1.0f)
             {
                 r *= 1.15f;
                 g *= 1.15f;
                 b *= 1.15f;
             }
 
-            // clamp
-            if (r > 255.0f) r = 255.0f;
-            if (g > 255.0f) g = 255.0f;
-            if (b > 255.0f) b = 255.0f;
-
-            uint8_t rr =
-                s_gammaTable[(uint8_t)r];
-
-            uint8_t gg =
-                s_gammaTable[(uint8_t)g];
-
-            uint8_t bb =
-                s_gammaTable[(uint8_t)b];
+            uint8_t rr = Gamma(r);
+            uint8_t gg = Gamma(g);
+            uint8_t bb = Gamma(b);
 
             s_frame[y][x][0] = rr;
             s_frame[y][x][1] = gg;
@@ -1290,25 +1472,138 @@ void VisualModes_DrawShockwave(const float *trail, float time)
             // ==========================================
             // BLOOM
             // ==========================================
-            if (brightness > 0.7f)
+            if(brightness > 0.35f)
             {
-                if (x + 1 < MATRIX_WIDTH)
+                if(x + 1 < MATRIX_WIDTH)
                 {
-                    s_frame[y][x + 1][0] = rr / 4;
-                    s_frame[y][x + 1][1] = gg / 4;
-                    s_frame[y][x + 1][2] = bb / 4;
+                    s_frame[y][x+1][0] = rr / 3;
+                    s_frame[y][x+1][1] = gg / 3;
+                    s_frame[y][x+1][2] = bb / 3;
                 }
 
-                if (y + 1 < MATRIX_HEIGHT)
+                if(x - 1 >= 0)
                 {
-                    s_frame[y + 1][x][0] = rr / 4;
-                    s_frame[y + 1][x][1] = gg / 4;
-                    s_frame[y + 1][x][2] = bb / 4;
+                    s_frame[y][x-1][0] = rr / 3;
+                    s_frame[y][x-1][1] = gg / 3;
+                    s_frame[y][x-1][2] = bb / 3;
+                }
+
+                if(y + 1 < MATRIX_HEIGHT)
+                {
+                    s_frame[y+1][x][0] = rr / 3;
+                    s_frame[y+1][x][1] = gg / 3;
+                    s_frame[y+1][x][2] = bb / 3;
+                }
+
+                if(y - 1 >= 0)
+                {
+                    s_frame[y-1][x][0] = rr / 3;
+                    s_frame[y-1][x][1] = gg / 3;
+                    s_frame[y-1][x][2] = bb / 3;
                 }
             }
         }
     }
 }
+
+// ======================================================
+// NORTHERN_LIGHTS
+// ======================================================
+void VisualModes_DrawNorthernLights(
+    const float *trail,
+    float time)
+{
+    memset(s_frame, 0, sizeof(s_frame));
+
+    // =========================================
+    // ENERGY
+    // =========================================
+    float energy = 0.0f;
+
+    for (int i = 0; i < MATRIX_WIDTH; i++)
+        energy += trail[i];
+
+    energy /= MATRIX_WIDTH;
+    energy /= MATRIX_HEIGHT;
+
+    // =========================================
+    // AURORA
+    // =========================================
+    for (int x = 0; x < MATRIX_WIDTH; x++)
+    {
+        float layer1 =
+            sinf(
+                x * 0.12f +
+                time * 0.25f);
+
+        float layer2 =
+            sinf(
+                x * 0.05f -
+                time * 0.18f);
+
+        float layer3 =
+            sinf(
+                x * 0.02f +
+                time * 0.10f);
+
+        float aurora =
+            layer1 * 0.55f +
+            layer2 * 0.30f +
+            layer3 * 0.15f;
+
+        float centerY =
+            MATRIX_HEIGHT * 0.5f +
+            aurora *
+            (4.0f + energy * 6.0f);
+
+        float curtainWidth =
+            3.5f +
+            energy * 3.0f;
+
+        for (int y = 0; y < MATRIX_HEIGHT; y++)
+        {
+            float dist =
+                fabsf(y - centerY);
+
+            float intensity =
+                1.0f -
+                dist / curtainWidth;
+
+            if (intensity <= 0.0f)
+                continue;
+
+            intensity *= intensity;
+
+            float t =
+                fmodf(
+                    x * 0.04f +
+                    time * 0.02f,
+                    1.0f);
+
+            float r, g, b;
+
+            VisualTheme_GetColor(
+                s_spectrumTheme,
+                t,
+                &r,
+                &g,
+                &b);
+
+            float brightness =
+                0.55f +
+                energy * 0.55f;
+
+            r *= intensity * brightness;
+            g *= intensity * brightness;
+            b *= intensity * brightness;
+
+            s_frame[y][x][0] = Gamma(r);
+            s_frame[y][x][1] = Gamma(g);
+            s_frame[y][x][2] = Gamma(b);
+        }
+    }
+}
+
 
 // ======================================================
 // GET FRAME
