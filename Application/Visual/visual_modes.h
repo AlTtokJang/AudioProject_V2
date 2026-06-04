@@ -14,9 +14,9 @@
 #define MATRIX_WIDTH 16U
 #define MATRIX_HEIGHT 16U
 
-#define LED_ON_R  0x90 // 0x80
-#define LED_ON_G  0x70 // 0x68
-#define LED_ON_B  0x90 // 0x80
+#define LED_ON_R  0x90
+#define LED_ON_G  0x70
+#define LED_ON_B  0x90
 // ======================================================
 // INIT / CLEAR
 // ======================================================
