@@ -43,11 +43,10 @@ void App_Main(void)
 	{
 		AudioPipeline_Process();
 		//AudioPipeline_Loger();
+		LCD_DrawMainScreen();
 
 		if (FFT_Run())
 		{
-			LCD_DrawMainScreen();
-
 			const float *trail = Visual_GetTrail();
 			const float *peakHold = Visual_GetPeak();
 

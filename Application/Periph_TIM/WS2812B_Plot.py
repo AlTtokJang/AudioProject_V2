@@ -2,7 +2,7 @@ import time
 import serial
 import tkinter as tk
 
-PORT = "COM5"
+PORT = "COM4"
 BAUDRATE = 2000000
 
 WIDTH = 16
@@ -22,7 +22,7 @@ INIT_WINDOW_WIDTH = 720
 INIT_WINDOW_HEIGHT = 720
 
 # PC 화면 표시용 밝기 증폭값
-DISPLAY_GAIN = 1
+DISPLAY_GAIN = 50
 
 OUTLINE_COLOR = "#101010"
 

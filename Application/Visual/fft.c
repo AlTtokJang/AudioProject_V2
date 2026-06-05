@@ -306,13 +306,13 @@ uint8_t FFT_Run(void)
 		if (s_trail[i] > s_peakHold[i])
 			s_peakHold[i] = s_trail[i];
 		else
-			s_peakHold[i] *= 0.96f;
+			s_peakHold[i] *= 0.985f;
 	}
 
 
 
 	// Trail 수출 변수 작성
-	//#define USE_SMOOTHING
+	#define USE_SMOOTHING
 	#ifdef USE_SMOOTHING
 	for (uint16_t i = 0; i < 16; i++)
 	{

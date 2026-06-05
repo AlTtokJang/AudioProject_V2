@@ -5,204 +5,200 @@
  *      Author: nugur
  */
 
+#include "visual_theme.h"
 #include "visual_renderer.h"
+
 #include <string.h>
 #include <math.h>
 
 // ======================================================
-// MODE TICK
+// CURRENT STATE
 // ======================================================
-//static uint32_t s_modeTick = 0;
+static VisualMode_t s_visualMode = VISUAL_MODE_SPECTRUM;
 
-// ======================================================
-// 현재 모드
-// ======================================================
-static VisualMode_t s_visualMode = VISUAL_MODE_RAINBOW;
+// global time
+static float s_time = 0.0f;
 
-// ======================================================
-// SPECTRUM + MIRROR 공유 테마
-// ======================================================
+// themes
 uint8_t s_spectrumTheme = 0;
+uint8_t s_mirrorTheme   = 0;
 
 // ======================================================
-// INIT
+// INTERNAL
+// ======================================================
+static inline void UpdateTime(float speed)
+{
+    s_time += speed;
+
+    if (s_time > 1000.0f)
+    {
+        s_time = 0.0f;
+    }
+}
+
+// ======================================================
+// INIT / CLEAR
 // ======================================================
 void VisualRenderer_Init(void)
 {
-	VisualModes_Init();
+    VisualModes_Init();
 }
 
-// ======================================================
-// CLEAR
-// ======================================================
 void VisualRenderer_Clear(void)
 {
-	VisualModes_Clear();
+    VisualModes_Clear();
 }
 
 // ======================================================
-// NEXT MODE
+// MODE CONTROL
 // ======================================================
 void VisualRenderer_NextMode(void)
 {
-	s_visualMode++;
+    s_visualMode++;
 
-	if (s_visualMode >= VISUAL_MODE_COUNT)
-	{
-		s_visualMode = 0;
-	}
+    if (s_visualMode >= VISUAL_MODE_COUNT)
+        s_visualMode = 0;
 }
 
-// ======================================================
-// NEXT SPECTRUM THEME
-// ======================================================
 void VisualRenderer_NextSpectrumTheme(void)
 {
-	s_spectrumTheme++;
+    s_spectrumTheme++;
 
-	if (s_spectrumTheme >= 6)
-	{
-		s_spectrumTheme = 0;
-	}
+    if (s_spectrumTheme >= SPECTRUM_THEME_COUNT)
+        s_spectrumTheme = 0;
+}
+
+void VisualRenderer_NextMirrorTheme(void)
+{
+    s_mirrorTheme++;
+
+    if (s_mirrorTheme >= MIRROR_THEME_COUNT)
+        s_mirrorTheme = 0;
 }
 
 // ======================================================
-// DRAW
+// DRAW DISPATCH
 // ======================================================
 void VisualRenderer_Draw(const float *trail, const float *peakHold)
 {
-	//s_modeTick++;
+    switch (s_visualMode)
+    {
+        // ==================================================
+        // SPECTRUM
+        // ==================================================
+        case VISUAL_MODE_SPECTRUM:
+            switch (s_spectrumTheme)
+            {
+                case 0: VisualModes_DrawSpectrum1(trail, peakHold); break;
+                case 1: VisualModes_DrawSpectrum2(trail, peakHold); break;
+                case 2: VisualModes_DrawSpectrum3(trail, peakHold); break;
+                case 3: VisualModes_DrawSpectrum4(trail, peakHold); break;
+                case 4: VisualModes_DrawSpectrum5(trail, peakHold); break;
+                case 5: VisualModes_DrawSpectrum6(trail, peakHold); break;
+                default: VisualModes_DrawSpectrum1(trail, peakHold); break;
+            }
+            break;
 
-	// ============================================== ====
-	// AUTO MODE CHANGE
-	// ==================================================
-	if (s_visualMode == VISUAL_MODE_RAINBOW)
-	{
-		static uint32_t mirrorTick = 0;
+        // ==================================================
+        // MIRROR
+        // ==================================================
+        case VISUAL_MODE_MIRROR_FULL:
+            VisualModes_DrawMirror_Full(trail);
+            break;
 
-		mirrorTick++;
+        case VISUAL_MODE_MIRROR_CENTER:
+            VisualModes_DrawMirror_Center(trail);
+            break;
 
-		if (mirrorTick >= 700)
-		{
-			mirrorTick = 0;
-			VisualRenderer_NextSpectrumTheme();
-		}
-	}
+        // ==================================================
+        // SIMPLE MODES
+        // ==================================================
+        case VISUAL_MODE_RAINBOW:
+            VisualModes_DrawRainbow(trail);
+            break;
 
-	/*if (s_modeTick > 500)
-	{
-		s_modeTick = 0;
+        case VISUAL_MODE_PULSE:
+            VisualModes_DrawPulse(trail);
+            break;
 
-		// spectrum 모드, mirror 모드일 때만
-		// 내부 테마 자동 순환
+        // ==================================================
+        // ENERGY MODES
+        // ==================================================
+        case VISUAL_MODE_SPARK_NOISE:
+            UpdateTime(0.016f);
+            VisualModes_DrawSparkNoise(trail, s_time);
+            break;
 
-		if (s_visualMode == VISUAL_MODE_SPECTRUM ||
-			s_visualMode == VISUAL_MODE_MIRROR)
-		{
-			VisualRenderer_NextSpectrumTheme();
-		}
-	}*/
+        case VISUAL_MODE_GLITCH_GRID:
+            UpdateTime(0.016f);
+            VisualModes_DrawGlitchGrid(trail, s_time);
+            break;
 
+        case VISUAL_MODE_GRID_BREATH:
+            UpdateTime(0.016f);
+            VisualModes_DrawGridBreath(trail, s_time);
+            break;
 
-	// ==================================================
-	// DRAW MODE
-	// ==================================================
-	switch (s_visualMode)
-	{
-		// ==============================================
-		// SPECTRUM
-		// ==============================================
-		case VISUAL_MODE_SPECTRUM:
-			switch (s_spectrumTheme)
-			{
-				// --------------------------------------
-				// SPECTRUM 1
-				// --------------------------------------
-				case 0:
-					VisualModes_DrawSpectrum1(trail,peakHold);
-					break;
+        // ==================================================
+        // MOTION MODES
+        // ==================================================
+        case VISUAL_MODE_ROTATING_FIELD:
+            UpdateTime(0.016f);
+            VisualModes_DrawRotatingField(trail, s_time);
+            break;
 
-				// --------------------------------------
-				// SPECTRUM 2
-				// --------------------------------------
-				case 1:
-					VisualModes_DrawSpectrum2(trail,peakHold);
-					break;
-				// --------------------------------------
-				// SPECTRUM 3
-				// --------------------------------------
-				case 2:
-					VisualModes_DrawSpectrum3(trail,peakHold);
-					break;
+        case VISUAL_MODE_PLASMA_MODE:
+            UpdateTime(0.016f);
+            VisualModes_DrawPlasma(trail, s_time);
+            break;
 
-				// --------------------------------------
-				// SPECTRUM 4
-				// --------------------------------------
-				case 3:
-					VisualModes_DrawSpectrum4(trail,peakHold);
-					break;
+        case VISUAL_MODE_MULTI_ORBIT:
+            UpdateTime(0.020f);
+            VisualModes_DrawMultiOrbit(trail, s_time);
+            break;
 
-				// --------------------------------------
-				// SPECTRUM 5
-				// --------------------------------------
-				case 4:
-					VisualModes_DrawSpectrum5(trail,peakHold);
-					break;
+        case VISUAL_MODE_HEX:
+            UpdateTime(0.018f);
+            VisualModes_DrawHexGrid(trail, s_time);
+            break;
 
-				// --------------------------------------
-				// SPECTRUM 6
-				// --------------------------------------
-				case 5:
-					VisualModes_DrawSpectrum6(trail,peakHold);
-					break;
+        case VISUAL_MODE_LASER:
+            UpdateTime(0.030f);
+            VisualModes_DrawLaserScan(trail, s_time);
+            break;
 
-				// --------------------------------------
-				// DEFAULT
-				// --------------------------------------
-				default:
-					VisualModes_DrawSpectrum1(trail,peakHold);
-					break;
-			}
-			break;
+        // ==================================================
+        // FLOW MODES
+        // ==================================================
+        case VISUAL_MODE_WATERUP:
+            VisualModes_DrawWaterup(trail);
+            break;
 
-		// ==============================================
-		// MIRROR_FULL
-		// ==============================================
-		case VISUAL_MODE_MIRROR_FULL:
-			VisualModes_DrawMirror_Full(trail,peakHold);
-			break;
+        case VISUAL_MODE_SHOCKWAVE:
+            UpdateTime(0.020f);
+            VisualModes_DrawShockwave(trail, s_time);
+            break;
 
-		// ==============================================
-		// MIRROR_CENTER
-		// ==============================================
-		case VISUAL_MODE_MIRROR_CENTER:
-			VisualModes_DrawMirror_Center(trail,peakHold);
-			break;
+        case VISUAL_MODE_NORTHERN_LIGHTS:
+            UpdateTime(0.010f);
+            VisualModes_DrawNorthernLights(trail, s_time);
+            break;
 
-		// ==============================================
-		// WATERFALL
-		// ==============================================
-		case VISUAL_MODE_WATERFALL:
-			VisualModes_DrawWaterfall(trail,peakHold);
-			break;
+        // ==================================================
+        // DEFAULT
+        // ==================================================
+        default:
 
-		// ==============================================
-		// RAINBOW
-		// ==============================================
-		case VISUAL_MODE_RAINBOW:
-			VisualModes_DrawRainbow(trail);
-			break;
+            VisualModes_DrawSpectrum1(trail, peakHold);
 
-		// ==============================================
-		// DEFAULT
-		// ==============================================
-		default:
-			VisualModes_DrawSpectrum1(trail, peakHold);
-			break;
-	}
+            break;
+    }
 }
 
+// ======================================================
+// GET FRAME BUFFER
+// ======================================================
 const uint8_t *VisualRenderer_GetFrame(void)
 {
-	return VisualModes_GetFrame();
+    return VisualModes_GetFrame();
 }

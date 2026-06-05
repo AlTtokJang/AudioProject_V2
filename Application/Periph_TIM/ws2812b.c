@@ -38,19 +38,26 @@ static void WriteByte(uint16_t *buf, uint8_t byte)
 
 static void WS2812B_RenderFrame(const uint8_t *frame)
 {
-	for (uint32_t y = 0; y < LED_HEIGHT; y++)
-	{
-		for (uint32_t x = 0; x < LED_WIDTH; x++)
-		{
-			uint32_t base = (y * LED_WIDTH + x) * 3U;
+    for (uint32_t y = 0; y < LED_HEIGHT; y++)
+    {
+        for (uint32_t x = 0; x < LED_WIDTH; x++)
+        {
+            // =================================================
+            // rotate 90deg CCW compensation
+            // =================================================
+            uint32_t srcX = LED_WIDTH  - 1U - y;
+            uint32_t srcY = x;
 
-			uint16_t idx = XYToIndex(x, y);
+            uint32_t base =
+                (srcY * LED_WIDTH + srcX) * 3U;
 
-			s_ledData[idx][0] = frame[base + 1]; // G
-			s_ledData[idx][1] = frame[base + 0]; // R
-			s_ledData[idx][2] = frame[base + 2]; // B
-		}
-	}
+            uint16_t idx = XYToIndex(x, y);
+
+            s_ledData[idx][0] = frame[base + 1]; // G
+            s_ledData[idx][1] = frame[base + 0]; // R
+            s_ledData[idx][2] = frame[base + 2]; // B
+        }
+    }
 }
 
 void WS2812B_Show(const uint8_t *frame)

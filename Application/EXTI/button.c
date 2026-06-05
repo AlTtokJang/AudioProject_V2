@@ -309,6 +309,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 						ButtonDebounce_TimerStop();
 
 						VisualRenderer_NextSpectrumTheme();
+						VisualRenderer_NextMirrorTheme();
 
 						buttonDebounceTarget = 0;
 						buttonDebounceCount = 0;
