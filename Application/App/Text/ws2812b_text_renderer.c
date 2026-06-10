@@ -14,8 +14,6 @@
 #define TEXT_MAX_LEN				50
 #define TEXT_SCROLL_INTERVAL_MS		200
 
-extern uint8_t g_hidTextRedraw;
-
 static uint8_t s_frame[16 * 16 * 3];					// WS2812B_Show() 프레임
 
 static const uint16_t *s_glyphCols[TEXT_MAX_LEN];		// 폰트의 데이터 주소
@@ -26,6 +24,9 @@ static uint8_t s_glyphCount;							// 글자 수
 static uint16_t s_textWidth;							// 전체 문자열 폭
 static int16_t s_textOffsetX;
 static uint32_t s_lastTick;
+
+static uint8_t s_lastText[TEXT_MAX_LEN][4];
+static uint8_t s_textReady;
 
 static const uint16_t s_digitFont[10][3] =
 {
@@ -205,21 +206,21 @@ static void TextRenderer_DrawGlyph(uint8_t index, int16_t screenX, uint8_t r, ui
 }
 
 // 윈도우 스크롤 로직
-static uint8_t TextRenderer_UpdateScroll(void)
+static void TextRenderer_UpdateScroll(void)
 {
 	uint32_t now;
 
 	if (s_textWidth <= 16u)
 	{
 		s_textOffsetX = 0;
-		return 0;
+		return;
 	}
 
 	now = HAL_GetTick();
 
 	if ((now - s_lastTick) < TEXT_SCROLL_INTERVAL_MS)
 	{
-		return 0;
+		return;
 	}
 
 	s_lastTick = now;
@@ -230,34 +231,27 @@ static uint8_t TextRenderer_UpdateScroll(void)
 	{
 		s_textOffsetX = 16;
 	}
-
-	return 1;
 }
 
 const uint8_t* TextRenderer_Render(const uint8_t (*text)[4])
 {
-	uint8_t update;
 	int16_t offsetX;
 	int16_t screenX;
 
-	update = 0;
-
-	if (g_hidTextRedraw)
+	if (text == 0)
 	{
-		TextRenderer_BuildGlyphs(text);
-		g_hidTextRedraw = 0U;
-		update = 1U;
-	}
-
-	if (TextRenderer_UpdateScroll())
-	{
-		update = 1;
-	}
-
-	if (!update)
-	{
+		memset(s_frame, 0, sizeof(s_frame));
 		return s_frame;
 	}
+
+	if ((s_textReady == 0U) || (memcmp(s_lastText, text, sizeof(s_lastText)) != 0))
+	{
+		memcpy(s_lastText, text, sizeof(s_lastText));
+		s_textReady = 1U;
+		TextRenderer_BuildGlyphs(text);
+	}
+
+	TextRenderer_UpdateScroll();
 
 	memset(s_frame, 0, sizeof(s_frame));
 

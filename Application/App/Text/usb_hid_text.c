@@ -18,7 +18,6 @@
 #define HID_TEXT_CMD_BLOCK3		0xC4U	// 45~49
 
 static uint8_t s_hidTextColor[HID_TEXT_MAX_LEN][4];
-uint8_t g_hidTextRedraw;
 
 // --------------------------------------------------------------------
 // 플래시 저장
@@ -79,7 +78,6 @@ void HIDText_LoadFromFlash(void)
 
 	memcpy(s_hidTextColor, latest->text, HID_TEXT_MAX_LEN * 4U);
 	s_hidTextSeq = latestSeq + 1U;
-	g_hidTextRedraw = 1U;
 }
 
 static void HIDText_SaveToFlash(void)
@@ -194,7 +192,6 @@ void HIDText_SetTextFromReport(const uint8_t *report, uint16_t len)
 		if (len >= (1U + (5U * 4U)))
 		{
 			memcpy(&s_hidTextColor[45][0], &report[1], 5U * 4U);
-			g_hidTextRedraw = 1;
 			HIDText_SaveToFlash();
 		}
 
