@@ -14,7 +14,8 @@ typedef enum
 {
 	AUDIO_SRC_USB = 0,
 	AUDIO_SRC_AUX,
-	AUDIO_SRC_BT
+	AUDIO_SRC_BT,
+	MORE_MOD_CLOCK
 } AudioSource_t;
 
 #define MASTER_BLOCK_SIZE 256

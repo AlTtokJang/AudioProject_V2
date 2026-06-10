@@ -14,7 +14,6 @@
 #include "visual_renderer.h"
 
 volatile AudioSource_t audioSource = AUDIO_SRC_USB;
-volatile uint8_t fftUseEq = 0;
 volatile uint8_t i2sUseEq = 0;
 volatile uint8_t agcRun = 0;
 volatile uint8_t agcOff = 1;
@@ -416,6 +415,12 @@ static void Confirm_EXTI(void)
 					I2S_Start_BT();
 					break;
 				case AUDIO_SRC_BT:
+					ADC_Stop_Aux();
+					I2S_Stop_BT();
+					AudioPipeline_RingClear();
+					audioSource = MORE_MOD_CLOCK;
+					break;
+				case MORE_MOD_CLOCK:
 					ADC_Stop_Aux();
 					I2S_Stop_BT();
 					AudioPipeline_RingClear();

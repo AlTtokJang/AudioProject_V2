@@ -371,6 +371,11 @@ USBD_StatusTypeDef USBD_LL_Init(USBD_HandleTypeDef *pdev)
   HAL_PCDEx_SetRxFiFo(&hpcd_USB_OTG_FS, 0x80);
   HAL_PCDEx_SetTxFiFo(&hpcd_USB_OTG_FS, 0, 0x40);
   HAL_PCDEx_SetTxFiFo(&hpcd_USB_OTG_FS, 1, 0x80);
+
+  /* ADJ HID 추가: HID 더미 IN endpoint 0x82는 물리 IN EP2를 사용한다.
+   * STM32 OTG FS는 IN endpoint를 열려면 해당 endpoint 번호의 Tx FIFO도 잡아줘야 한다.
+   * 기존 CubeMX Audio 설정은 EP0/EP1 Tx FIFO만 있어서 EP2 IN이 정상 시작되지 않을 수 있다. */
+  HAL_PCDEx_SetTxFiFo(&hpcd_USB_OTG_FS, 2, 0x40);
   }
   return USBD_OK;
 }

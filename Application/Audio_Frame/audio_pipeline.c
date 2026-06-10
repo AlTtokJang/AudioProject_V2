@@ -17,12 +17,18 @@
 #define OUTPUT_RING_SIZE		(MASTER_BLOCK_SIZE * 11U)
 #define FFT_RING_SIZE			(MASTER_BLOCK_SIZE * 32U)
 
+#define AUDIO_PIPELINE_STOP_MS	2000U
+
 #define AUDIO_SYNC_ADJUST_SAMPLES  4U
 #define AUDIO_PROCESS_MAX_SAMPLES  (MASTER_BLOCK_SIZE + AUDIO_SYNC_ADJUST_SAMPLES)
 
-extern volatile uint8_t fftUseEq;
 extern volatile uint8_t i2sUseEq;
 extern volatile uint8_t agcOff;
+
+static uint8_t s_pipelineStopped;
+static uint32_t s_inputEmptyStartTick;
+static uint32_t s_lastFftZeroPushTick;
+static int16_t s_fftZeroBlock[MASTER_BLOCK_SIZE];
 
 static int16_t pcmRaw[AUDIO_PROCESS_MAX_SAMPLES];
 static int16_t pcmEQ[AUDIO_PROCESS_MAX_SAMPLES];
@@ -94,10 +100,39 @@ void AudioPipeline_Process(void)
 		return;
 	}
 
+	// -------------------------------------------------------
+	// 오디오 파이프라인 멈춤  해결 로직으로 변경됨
+	// 일정 시간 지나면 fft에 0만 공급해서 LED 갱신할 수 있도록 함
 	if (AudioRing_Available(&inputRing) < popSize)
 	{
+		uint32_t now = HAL_GetTick();
+
+		if (s_inputEmptyStartTick == 0)
+			s_inputEmptyStartTick = now;
+
+		if (!s_pipelineStopped)
+			if ((now - s_inputEmptyStartTick) >= AUDIO_PIPELINE_STOP_MS)
+				s_pipelineStopped = 1;
+
+		if (s_pipelineStopped)
+		{
+			if ((now - s_lastFftZeroPushTick) >= 5)
+			{
+				s_lastFftZeroPushTick = now;
+
+				if (AudioRing_Free(&fftRing) >= MASTER_BLOCK_SIZE)
+					AudioRing_Push(&fftRing, s_fftZeroBlock, MASTER_BLOCK_SIZE);
+			}
+		}
+
 		return;
 	}
+	else
+	{
+		s_inputEmptyStartTick = 0;
+		s_pipelineStopped = 0;
+	}
+	// -------------------------------------------------------
 
 	AudioRing_Pop(&inputRing, pcmRaw, popSize);
 
@@ -111,14 +146,7 @@ void AudioPipeline_Process(void)
 		AudioRing_Push(&outputRing, pcmRaw, popSize);
 	}
 
-	if (fftUseEq)
-	{
-		AudioPipeline_StereoToMono(pcmEQ, pcmMono, popSize / 2);
-	}
-	else
-	{
-		AudioPipeline_StereoToMono(pcmRaw, pcmMono, popSize / 2);
-	}
+	AudioPipeline_StereoToMono(pcmRaw, pcmMono, popSize / 2);
 
 	if (!agcOff)
 	{
