@@ -47,6 +47,10 @@ void App_Main(void)
 
 		if (audioSource == MORE_MOD_CLOCK)
 		{
+
+		}
+		else if (audiioSource == MORE_MOD_TEXT)
+		{
 			WS2812B_Show(TextRenderer_Render(HIDText_GetText()));
 		}
 		else

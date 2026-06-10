@@ -404,7 +404,7 @@ static void Confirm_EXTI(void)
 			{
 				case AUDIO_SRC_USB:
 					audioSource = AUDIO_SRC_AUX;
-					I2S_Stop_BT();
+					//I2S_Stop_BT();
 					AudioPipeline_RingClear();
 					ADC_Start_Aux();
 					break;
@@ -415,15 +415,21 @@ static void Confirm_EXTI(void)
 					I2S_Start_BT();
 					break;
 				case AUDIO_SRC_BT:
-					ADC_Stop_Aux();
+					//ADC_Stop_Aux();
 					I2S_Stop_BT();
 					AudioPipeline_RingClear();
 					audioSource = MORE_MOD_CLOCK;
 					break;
 				case MORE_MOD_CLOCK:
-					ADC_Stop_Aux();
-					I2S_Stop_BT();
-					AudioPipeline_RingClear();
+					//ADC_Stop_Aux();
+					//I2S_Stop_BT();
+					//AudioPipeline_RingClear();
+					audioSource = MORE_MOD_TEXT;
+					break;
+				case MORE_MOD_TEXT:
+					//ADC_Stop_Aux();
+					//I2S_Stop_BT();
+					//AudioPipeline_RingClear();
 					audioSource = AUDIO_SRC_USB;
 					break;
 				default:
