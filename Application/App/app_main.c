@@ -17,13 +17,17 @@
 #include "fft.h"
 #include "visual_renderer.h"
 #include "ws2812b.h"
+#include "ws2812b_text_renderer.h"
+#include "usb_hid_text.h"
+#include "rtc.h"
 
-#ifdef WS2812B_DEBUG
-static void UART3_SendVisualFrame(void);
-#endif
+extern volatile AudioSource_t audioSource;
 
 void App_Main(void)
 {
+	HIDText_LoadFromFlash();
+	RTC_LoadFromFlash();
+
 	LCD_AppModeInit();
 
 	AudioPipeline_Init();
@@ -41,21 +45,30 @@ void App_Main(void)
 
 	while (1)
 	{
-		AudioPipeline_Process();
-		//AudioPipeline_Loger();
+		RTC_FlashSaveTask();
 		LCD_DrawMainScreen();
 
-		if (FFT_Run())
+		if (audioSource == MORE_MOD_CLOCK)
 		{
-			const float *trail = Visual_GetTrail();
-			const float *peakHold = Visual_GetPeak();
+			WS2812B_Show(TextRenderer_Render(RTC_GetText(), 0));
+		}
+		else if (audioSource == MORE_MOD_TEXT)
+		{
+			WS2812B_Show(TextRenderer_Render(HIDText_GetText(), 1));
+		}
+		else
+		{
+			AudioPipeline_Process();
+			AudioPipeline_Loger();
 
-			VisualRenderer_Draw(trail, peakHold);
-			WS2812B_Show(VisualRenderer_GetFrame());
+			if (FFT_Run())
+			{
+				const float *trail = Visual_GetTrail();
+				const float *peakHold = Visual_GetPeak();
 
-			#ifdef WS2812B_DEBUG
-			UART3_SendVisualFrame();
-			#endif
+				VisualRenderer_Draw(trail, peakHold);
+				WS2812B_Show(VisualRenderer_GetFrame());
+			}
 		}
 	}
 }
@@ -75,35 +88,3 @@ void Error_Loger(AudioErrorCode_t code)
 	errorFlags[code] = 1;
 	lastErrorCode = code;
 }
-
-#ifdef WS2812B_DEBUG
-extern UART_HandleTypeDef huart3;
-static void UART3_SendVisualFrame(void)
-{
-	const uint8_t *frame = VisualRenderer_GetFrame();
-
-	static const uint8_t header[4] =
-	{
-		0xAA, 0x55, 0x10, 0x10
-	};
-
-	if (frame == NULL)
-	{
-		return;
-	}
-
-	HAL_UART_Transmit(
-			&huart3,
-			(uint8_t *)header,
-			sizeof(header),
-			HAL_MAX_DELAY
-	);
-
-	HAL_UART_Transmit(
-			&huart3,
-			(uint8_t *)frame,
-			16 * 16 * 3,
-			HAL_MAX_DELAY
-	);
-}
-#endif

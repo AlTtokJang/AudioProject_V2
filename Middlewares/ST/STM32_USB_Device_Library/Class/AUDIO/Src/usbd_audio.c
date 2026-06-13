@@ -62,6 +62,7 @@ EndBSPDependencies */
 /* Includes ------------------------------------------------------------------*/
 #include "usbd_audio.h"
 #include "usbd_ctlreq.h"
+#include "usb_hid_text.h"        /* ADJ HID 추가: HID OUT report를 문자열 버퍼로 저장 */
 
 
 /** @addtogroup STM32_USB_DEVICE_LIBRARY
@@ -164,6 +165,35 @@ USBD_ClassTypeDef USBD_AUDIO =
 #endif /* USE_USBD_COMPOSITE  */
 };
 
+/* ADJ HID 추가: HID OUT endpoint 수신 버퍼 */
+__ALIGN_BEGIN static uint8_t s_hidTextRxBuffer[HID_TEXT_OUT_PACKET] __ALIGN_END;
+/* ADJ HID 수정: Windows HidUsb가 GET_REPORT를 요청할 때 돌려줄 더미 IN report */
+__ALIGN_BEGIN static uint8_t s_hidInDummyBuffer[HID_TEXT_IN_PACKET] __ALIGN_END;
+static uint8_t s_hidIdle = 0U;
+static uint8_t s_hidProtocol = 0U;
+static uint8_t s_hidSetReportPending = 0U;
+
+/* ADJ HID 수정: Windows HidUsb 시작 실패 방지를 위해 64바이트 Input/Output report를 모두 선언 */
+/* ADJ HID 수정: 아래 Report Descriptor는 총 25바이트이므로 HID_REPORT_DESC_SIZE도 25U여야 함. 27U이면 배열 뒤에 0x00이 2바이트 채워져 Windows가 Unknown item으로 거부함 */
+__ALIGN_BEGIN static uint8_t HID_Text_ReportDesc[HID_REPORT_DESC_SIZE] __ALIGN_END =
+{
+  0x06, 0x00, 0xFF,                   /* Usage Page: Vendor Defined */
+  0x09, 0x01,                         /* Usage */
+  0xA1, 0x01,                         /* Collection: Application */
+
+  0x09, 0x02,                         /* Usage */
+  0x15, 0x00,                         /* Logical Minimum: 0 */
+  0x26, 0xFF, 0x00,                   /* Logical Maximum: 255 */
+  0x75, 0x08,                         /* Report Size: 8 bits */
+  0x95, 0x40,                         /* Report Count: 64 bytes */
+  0x91, 0x02,                         /* Output: Data, Variable, Absolute */
+
+  0x09, 0x03,                         /* Usage */
+  0x81, 0x02,                         /* Input: Data, Variable, Absolute - ADJ HID 수정: 더미 IN report */
+
+  0xC0                                /* End Collection */
+};
+
 #ifndef USE_USBD_COMPOSITE
 /* USB AUDIO device Configuration Descriptor */
 __ALIGN_BEGIN static uint8_t USBD_AUDIO_CfgDesc[USB_AUDIO_CONFIG_DESC_SIZ] __ALIGN_END =
@@ -173,7 +203,7 @@ __ALIGN_BEGIN static uint8_t USBD_AUDIO_CfgDesc[USB_AUDIO_CONFIG_DESC_SIZ] __ALI
   USB_DESC_TYPE_CONFIGURATION,          /* bDescriptorType */
   LOBYTE(USB_AUDIO_CONFIG_DESC_SIZ),    /* wTotalLength */
   HIBYTE(USB_AUDIO_CONFIG_DESC_SIZ),
-  0x02,                                 /* bNumInterfaces */
+  0x03,                                 /* bNumInterfaces - ADJ HID 추가: Audio 2개 + HID 1개 */
   0x01,                                 /* bConfigurationValue */
   0x00,                                 /* iConfiguration */
 #if (USBD_SELF_POWERED == 1U)
@@ -315,6 +345,45 @@ __ALIGN_BEGIN static uint8_t USBD_AUDIO_CfgDesc[USB_AUDIO_CONFIG_DESC_SIZ] __ALI
   0x00,                                 /* wLockDelay */
   0x00,
   /* 07 byte*/
+
+  /* ADJ HID 추가: Interface 2 - PC에서 STM32로 문자열을 보내는 Custom HID OUT */
+  0x09,                                 /* bLength */
+  USB_DESC_TYPE_INTERFACE,              /* bDescriptorType */
+  HID_TEXT_INTERFACE,                   /* bInterfaceNumber */
+  0x00,                                 /* bAlternateSetting */
+  0x02,                                 /* bNumEndpoints: OUT + IN endpoint 2개 - ADJ HID 수정 */
+  0x03,                                 /* bInterfaceClass: HID */
+  0x00,                                 /* bInterfaceSubClass: None */
+  0x00,                                 /* bInterfaceProtocol: None */
+  0x00,                                 /* iInterface */
+
+  /* ADJ HID 추가: HID Descriptor */
+  0x09,                                 /* bLength */
+  HID_DESCRIPTOR_TYPE,                  /* bDescriptorType */
+  0x11, 0x01,                           /* bcdHID 1.11 */
+  0x00,                                 /* bCountryCode */
+  0x01,                                 /* bNumDescriptors */
+  HID_REPORT_DESC,                      /* bDescriptorType: Report */
+  LOBYTE(HID_REPORT_DESC_SIZE),         /* wDescriptorLength */
+  HIBYTE(HID_REPORT_DESC_SIZE),
+
+  /* ADJ HID 추가: HID OUT Endpoint Descriptor */
+  0x07,                                 /* bLength */
+  USB_DESC_TYPE_ENDPOINT,               /* bDescriptorType */
+  HID_TEXT_OUT_EP,                      /* bEndpointAddress: EP2 OUT */
+  USBD_EP_TYPE_INTR,                    /* bmAttributes: Interrupt */
+  LOBYTE(HID_TEXT_OUT_PACKET),          /* wMaxPacketSize */
+  HIBYTE(HID_TEXT_OUT_PACKET),
+  0x0A,                                 /* bInterval: 10 ms */
+
+  /* ADJ HID 수정: HID IN Endpoint Descriptor - 실제 송신은 안 해도 Windows HID 시작용으로 필요 */
+  0x07,                                 /* bLength */
+  USB_DESC_TYPE_ENDPOINT,               /* bDescriptorType */
+  HID_TEXT_IN_EP,                       /* bEndpointAddress: EP2 IN */
+  USBD_EP_TYPE_INTR,                    /* bmAttributes: Interrupt */
+  LOBYTE(HID_TEXT_IN_PACKET),           /* wMaxPacketSize */
+  HIBYTE(HID_TEXT_IN_PACKET),
+  0x0A,                                 /* bInterval: 10 ms */
 } ;
 
 /* USB Standard Device Descriptor */
@@ -402,6 +471,17 @@ static uint8_t USBD_AUDIO_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
   (void)USBD_LL_PrepareReceive(pdev, AUDIOOutEpAdd, haudio->buffer,
                                AUDIO_OUT_PACKET);
 
+  /* ADJ HID 추가: HID OUT EP2를 열고 첫 수신을 준비 */
+  (void)USBD_LL_OpenEP(pdev, HID_TEXT_OUT_EP, USBD_EP_TYPE_INTR, HID_TEXT_OUT_PACKET);
+  pdev->ep_out[HID_TEXT_OUT_EP & 0xFU].is_used = 1U;
+
+  (void)USBD_LL_PrepareReceive(pdev, HID_TEXT_OUT_EP,
+                               s_hidTextRxBuffer, HID_TEXT_OUT_PACKET);
+
+  /* ADJ HID 수정: Windows HidUsb 시작용 더미 IN EP2 열기. 현재 STM32->PC 송신은 사용하지 않음 */
+  (void)USBD_LL_OpenEP(pdev, HID_TEXT_IN_EP, USBD_EP_TYPE_INTR, HID_TEXT_IN_PACKET);
+  pdev->ep_in[HID_TEXT_IN_EP & 0xFU].is_used = 1U;
+
   return (uint8_t)USBD_OK;
 }
 
@@ -425,6 +505,14 @@ static uint8_t USBD_AUDIO_DeInit(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
   (void)USBD_LL_CloseEP(pdev, AUDIOOutEpAdd);
   pdev->ep_out[AUDIOOutEpAdd & 0xFU].is_used = 0U;
   pdev->ep_out[AUDIOOutEpAdd & 0xFU].bInterval = 0U;
+
+  /* ADJ HID 추가: HID OUT EP2 닫기 */
+  (void)USBD_LL_CloseEP(pdev, HID_TEXT_OUT_EP);
+  pdev->ep_out[HID_TEXT_OUT_EP & 0xFU].is_used = 0U;
+
+  /* ADJ HID 수정: 더미 IN EP2 닫기 */
+  (void)USBD_LL_CloseEP(pdev, HID_TEXT_IN_EP);
+  pdev->ep_in[HID_TEXT_IN_EP & 0xFU].is_used = 0U;
 
   /* DeInit  physical Interface components */
   if (pdev->pClassDataCmsit[pdev->classId] != NULL)
@@ -464,6 +552,51 @@ static uint8_t USBD_AUDIO_Setup(USBD_HandleTypeDef *pdev,
   switch (req->bmRequest & USB_REQ_TYPE_MASK)
   {
     case USB_REQ_TYPE_CLASS:
+      /* ADJ HID 추가: Interface 2로 들어오는 HID class request 처리 */
+      if ((uint8_t)(req->wIndex & 0xFFU) == HID_TEXT_INTERFACE)
+      {
+        switch (req->bRequest)
+        {
+          case 0x01U:                  /* GET_REPORT */
+            /* ADJ HID 수정: Windows HidUsb 시작 시 GET_REPORT를 요청할 수 있으므로 64바이트 더미 응답 */
+            (void)USBD_CtlSendData(pdev, s_hidInDummyBuffer,
+                                   MIN(HID_TEXT_IN_PACKET, req->wLength));
+            break;
+
+          case 0x09U:                  /* SET_REPORT */
+            /* ADJ HID 수정: Control OUT report가 와도 STALL하지 않도록 수신만 준비 */
+            if (req->wLength != 0U)
+            {
+              s_hidSetReportPending = 1U;
+              (void)USBD_CtlPrepareRx(pdev, s_hidTextRxBuffer,
+                                       MIN(HID_TEXT_OUT_PACKET, req->wLength));
+            }
+            break;
+
+          case 0x02U:                  /* GET_IDLE */
+            (void)USBD_CtlSendData(pdev, &s_hidIdle, 1U);
+            break;
+
+          case 0x0AU:                  /* SET_IDLE */
+            s_hidIdle = (uint8_t)(req->wValue >> 8);
+            break;
+
+          case 0x03U:                  /* GET_PROTOCOL */
+            (void)USBD_CtlSendData(pdev, &s_hidProtocol, 1U);
+            break;
+
+          case 0x0BU:                  /* SET_PROTOCOL */
+            s_hidProtocol = (uint8_t)(req->wValue);
+            break;
+
+          default:
+            USBD_CtlError(pdev, req);
+            ret = USBD_FAIL;
+            break;
+        }
+        break;
+      }
+
       switch (req->bRequest)
       {
         case AUDIO_REQ_GET_CUR:
@@ -497,7 +630,31 @@ static uint8_t USBD_AUDIO_Setup(USBD_HandleTypeDef *pdev,
           break;
 
         case USB_REQ_GET_DESCRIPTOR:
-          if ((req->wValue >> 8) == AUDIO_DESCRIPTOR_TYPE)
+          /* ADJ HID 수정: HID Descriptor Type(0x21)와 Audio Class-Specific Descriptor Type(0x21)가 값이 같음.
+           * 그래서 먼저 wIndex의 interface 번호가 HID_TEXT_INTERFACE인지 확인해야 함.
+           * 이 순서가 아니면 Windows가 HID Descriptor를 요청했을 때 Audio Header를 보내서 HidUsb 시작 실패가 발생함. */
+          if ((uint8_t)(req->wIndex & 0xFFU) == HID_TEXT_INTERFACE)
+          {
+            /* ADJ HID 추가: HID Report Descriptor 요청 처리 */
+            if ((req->wValue >> 8) == HID_REPORT_DESC)
+            {
+              len = MIN(HID_REPORT_DESC_SIZE, req->wLength);
+              (void)USBD_CtlSendData(pdev, HID_Text_ReportDesc, len);
+            }
+            /* ADJ HID 추가: HID Descriptor 요청 처리 */
+            else if ((req->wValue >> 8) == HID_DESCRIPTOR_TYPE)
+            {
+              pbuf = &USBD_AUDIO_CfgDesc[USB_AUDIO_CONFIG_DESC_SIZ - 23U];
+              len = MIN(HID_DESC_SIZE, req->wLength);
+              (void)USBD_CtlSendData(pdev, pbuf, len);
+            }
+            else
+            {
+              USBD_CtlError(pdev, req);
+              ret = USBD_FAIL;
+            }
+          }
+          else if ((req->wValue >> 8) == AUDIO_DESCRIPTOR_TYPE)
           {
             pbuf = (uint8_t *)USBD_AUDIO_GetAudioHeaderDesc(pdev->pConfDesc);
             if (pbuf != NULL)
@@ -516,7 +673,16 @@ static uint8_t USBD_AUDIO_Setup(USBD_HandleTypeDef *pdev,
         case USB_REQ_GET_INTERFACE:
           if (pdev->dev_state == USBD_STATE_CONFIGURED)
           {
-            (void)USBD_CtlSendData(pdev, (uint8_t *)&haudio->alt_setting, 1U);
+            /* ADJ HID 추가: HID interface는 alternate setting이 0 하나뿐 */
+            if ((uint8_t)(req->wIndex & 0xFFU) == HID_TEXT_INTERFACE)
+            {
+              static uint8_t hid_alt_setting = 0U;
+              (void)USBD_CtlSendData(pdev, &hid_alt_setting, 1U);
+            }
+            else
+            {
+              (void)USBD_CtlSendData(pdev, (uint8_t *)&haudio->alt_setting, 1U);
+            }
           }
           else
           {
@@ -528,7 +694,16 @@ static uint8_t USBD_AUDIO_Setup(USBD_HandleTypeDef *pdev,
         case USB_REQ_SET_INTERFACE:
           if (pdev->dev_state == USBD_STATE_CONFIGURED)
           {
-            if ((uint8_t)(req->wValue) <= USBD_MAX_NUM_INTERFACES)
+            /* ADJ HID 추가: HID interface는 alternate setting 0만 허용 */
+            if ((uint8_t)(req->wIndex & 0xFFU) == HID_TEXT_INTERFACE)
+            {
+              if ((uint8_t)(req->wValue) != 0U)
+              {
+                USBD_CtlError(pdev, req);
+                ret = USBD_FAIL;
+              }
+            }
+            else if ((uint8_t)(req->wValue) <= USBD_MAX_NUM_INTERFACES)
             {
               haudio->alt_setting = (uint8_t)(req->wValue);
             }
@@ -608,6 +783,14 @@ static uint8_t USBD_AUDIO_EP0_RxReady(USBD_HandleTypeDef *pdev)
   if (haudio == NULL)
   {
     return (uint8_t)USBD_FAIL;
+  }
+
+  /* ADJ HID 수정: Control endpoint로 들어온 HID SET_REPORT도 문자열로 반영 */
+  if (s_hidSetReportPending != 0U)
+  {
+    HIDText_SetTextFromReport(s_hidTextRxBuffer, HID_TEXT_OUT_PACKET);
+    s_hidSetReportPending = 0U;
+    return (uint8_t)USBD_OK;
   }
 
   if (haudio->control.cmd == AUDIO_REQ_SET_CUR)
@@ -780,6 +963,19 @@ static uint8_t USBD_AUDIO_DataOut(USBD_HandleTypeDef *pdev, uint8_t epnum)
   if (haudio == NULL)
   {
     return (uint8_t)USBD_FAIL;
+  }
+
+  /* ADJ HID 추가: EP2 OUT으로 들어온 64바이트 report를 문자열 버퍼에 저장 */
+  if (epnum == HID_TEXT_OUT_EP)
+  {
+    PacketSize = (uint16_t)USBD_LL_GetRxDataSize(pdev, epnum);
+
+    HIDText_SetTextFromReport(s_hidTextRxBuffer, PacketSize);
+
+    (void)USBD_LL_PrepareReceive(pdev, HID_TEXT_OUT_EP,
+                                 s_hidTextRxBuffer, HID_TEXT_OUT_PACKET);
+
+    return (uint8_t)USBD_OK;
   }
 
   if (epnum == AUDIOOutEpAdd)

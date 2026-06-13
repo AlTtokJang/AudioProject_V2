@@ -46,7 +46,7 @@ extern "C" {
 #endif /* USBD_AUDIO_FREQ */
 
 #ifndef USBD_MAX_NUM_INTERFACES
-#define USBD_MAX_NUM_INTERFACES                       1U
+#define USBD_MAX_NUM_INTERFACES                       3U    /* ADJ HID 수정: fallback도 3개 interface로 맞춤 */
 #endif /* USBD_AUDIO_FREQ */
 
 #ifndef AUDIO_HS_BINTERVAL
@@ -61,11 +61,25 @@ extern "C" {
 #define AUDIO_OUT_EP                                  0x01U
 #endif /* AUDIO_OUT_EP */
 
-#define USB_AUDIO_CONFIG_DESC_SIZ                     0x6DU
+/* ADJ HID 수정: Windows HidUsb는 OUT 전용 HID에서 시작 실패할 수 있어, 더미 IN endpoint까지 추가함. 0x6D + HID interface descriptor 32 bytes = 0x8D */
+#define USB_AUDIO_CONFIG_DESC_SIZ                     0x8DU
 #define AUDIO_INTERFACE_DESC_SIZE                     0x09U
 #define USB_AUDIO_DESC_SIZ                            0x09U
 #define AUDIO_STANDARD_ENDPOINT_DESC_SIZE             0x09U
 #define AUDIO_STREAMING_ENDPOINT_DESC_SIZE            0x07U
+
+/* ADJ HID 추가: PC -> STM32 문자열 전송용 Custom HID OUT 설정 */
+#define HID_TEXT_INTERFACE                            0x02U
+#define HID_TEXT_OUT_EP                               0x02U
+#define HID_TEXT_IN_EP                                0x82U
+#define HID_TEXT_OUT_PACKET                           64U
+#define HID_TEXT_IN_PACKET                            64U
+
+#define HID_DESCRIPTOR_TYPE                           0x21U
+#define HID_REPORT_DESC                               0x22U
+#define HID_DESC_SIZE                                 0x09U
+#define HID_REPORT_DESC_SIZE                          25U    /* ADJ HID 수정: 실제 HID_Text_ReportDesc 바이트 수는 25바이트. 27U이면 뒤에 0x00이 2바이트 붙어 Windows가 Unknown item으로 거부함 */
+
 
 #define AUDIO_DESCRIPTOR_TYPE                         0x21U
 #define USB_DEVICE_CLASS_AUDIO                        0x01U

@@ -8,6 +8,10 @@
 #include "ws2812b.h"
 #include <string.h>
 
+#ifdef WS2812B_DEBUG
+static void UART3_SendVisualFrame(const uint8_t *frame);
+#endif
+
 // ================================================================
 // STATE
 // ================================================================
@@ -65,6 +69,10 @@ void WS2812B_Show(const uint8_t *frame)
 	if (s_dmaRunning)
 		return;
 
+	#ifdef WS2812B_DEBUG
+	UART3_SendVisualFrame(frame);
+	#endif
+
 	WS2812B_RenderFrame(frame);
 
 	uint32_t idx = 0;
@@ -97,3 +105,33 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
 		s_dmaRunning = 0;
 	}
 }
+
+#ifdef WS2812B_DEBUG
+extern UART_HandleTypeDef huart3;
+static void UART3_SendVisualFrame(const uint8_t *frame)
+{
+	static const uint8_t header[4] =
+	{
+		0xAA, 0x55, 0x10, 0x10
+	};
+
+	if (frame == NULL)
+	{
+		return;
+	}
+
+	HAL_UART_Transmit(
+			&huart3,
+			(uint8_t *)header,
+			sizeof(header),
+			HAL_MAX_DELAY
+	);
+
+	HAL_UART_Transmit(
+			&huart3,
+			(uint8_t *)frame,
+			16 * 16 * 3,
+			HAL_MAX_DELAY
+	);
+}
+#endif
