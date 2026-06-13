@@ -11,6 +11,7 @@
 #include "global_define.h"
 #include "adc.h"
 #include "agc.h"
+#include "ws2812b_text_renderer.h"
 #include <string.h>
 #include <stdio.h>
 
@@ -21,6 +22,8 @@ extern volatile uint8_t agcOff;
 
 extern I2C_HandleTypeDef hi2c2;
 extern DMA_HandleTypeDef hdma_i2c2_tx;
+
+static uint8_t firstView = 1;	// EQ 초기 실행 표시
 
 #define LCD_BUFFER_SIZE		(SSD1306_WIDTH * SSD1306_HEIGHT / 8)
 #define LCD_EQ_HOLD_MS		2000
@@ -116,6 +119,9 @@ static void LCD_DrawGauge(uint8_t x, uint8_t y, uint8_t w, uint8_t h, int value,
 
 	for (uint8_t px = 0; px < w; px++)
 	{
+		if (px == w / 2)
+			continue;
+
 		LCD_DrawPixel(x + px, y, 1);
 		LCD_DrawPixel(x + px, y + h - 1, 1);
 	}
@@ -241,83 +247,124 @@ void LCD_DrawMainScreen(void)
 		return;
 	}
 
-	static uint8_t firstView = 1;
-
-	ADC_GetValue_EQ(eq_value);
-
-	if (firstView || EqValueChanged(eq_value, eq_value_prev, sizeof(eq_value)))
+	if (audioSource == MORE_MOD_CLOCK)
 	{
-		firstView = 0;
+		LCD_ClearBuffer();
 
-		memcpy(eq_value_prev, eq_value, sizeof(eq_value));
+		LCD_WriteString(29, 3, "CLOCK MODE", Font_7x10, 1);
 
-		lcd_screen = LCD_SCREEN_EQ;
-		lcd_eq_hold_tick = HAL_GetTick();
-
-		LCD_DrawEQScreen();
-		return;
-	}
-
-	if (lcd_screen == LCD_SCREEN_EQ)
-	{
-		if ((HAL_GetTick() - lcd_eq_hold_tick) < LCD_EQ_HOLD_MS)
+		// 노랑/파랑 영역 경계선
+		for (uint8_t x = 0; x < SSD1306_WIDTH; x++)
 		{
+			LCD_DrawPixel(x, 15, 1);
+		}
+	}
+	else if (audioSource == MORE_MOD_TEXT)
+	{
+		LCD_ClearBuffer();
+
+		LCD_WriteString(32, 3, "TEXT MODE", Font_7x10, 1);
+
+		// 노랑/파랑 영역 경계선
+		for (uint8_t x = 0; x < SSD1306_WIDTH; x++)
+		{
+			LCD_DrawPixel(x, 15, 1);
+		}
+
+		char lenText[8];
+		snprintf(lenText, sizeof(lenText), "%d/50", TextRenderer_TextLen());
+		LCD_WriteString(2, 18, "CHARS:", Font_7x10, 1);
+		LCD_WriteString(44, 18, lenText, Font_7x10, 1);
+
+		LCD_WriteString(2, 30, "SHIFT:", Font_7x10, 1);
+		LCD_WriteString(44, 30, TextRenderer_IsScrolling() ? "ON" : "OFF", Font_7x10, 1);
+
+		if (TextRenderer_IsScrolling())
+		{
+			char speedText[8];
+			snprintf(speedText, sizeof(speedText), "%d/10", TextRenderer_WhatIsSpeed());
+			LCD_WriteString(2, 42, "SPEED:", Font_7x10, 1);
+			LCD_WriteString(44, 42, speedText, Font_7x10, 1);
+		}
+	}
+	else
+	{
+		ADC_GetValue_EQ(eq_value);
+
+		if (firstView || EqValueChanged(eq_value, eq_value_prev, sizeof(eq_value)))
+		{
+			firstView = 0;
+
+			memcpy(eq_value_prev, eq_value, sizeof(eq_value));
+
+			lcd_screen = LCD_SCREEN_EQ;
+			lcd_eq_hold_tick = HAL_GetTick();
+
 			LCD_DrawEQScreen();
 			return;
 		}
 
-		lcd_screen = LCD_SCREEN_MAIN;
+		if (lcd_screen == LCD_SCREEN_EQ)
+		{
+			if ((HAL_GetTick() - lcd_eq_hold_tick) < LCD_EQ_HOLD_MS)
+			{
+				LCD_DrawEQScreen();
+				return;
+			}
+
+			lcd_screen = LCD_SCREEN_MAIN;
+		}
+
+		char *input_mode;
+		switch (audioSource)
+		{
+			case AUDIO_SRC_USB:
+				input_mode = "USB";
+				break;
+			case AUDIO_SRC_AUX:
+				input_mode = "AUX";
+				break;
+			case AUDIO_SRC_BT:
+				input_mode = " BT";
+				break;
+			default:
+				input_mode = " ";
+				break;
+		}
+
+		uint8_t db_min;
+		ADC_GetValue_VOL(&db_min);
+
+		LCD_ClearBuffer();
+
+		// y = 0~15 노랑 영역
+		LCD_WriteString(36, 3, input_mode, Font_7x10, 1);
+		LCD_WriteString(64, 3, "MODE", Font_7x10, 1);
+
+		// 노랑/파랑 영역 경계선
+		for (uint8_t x = 0; x < SSD1306_WIDTH; x++)
+		{
+			LCD_DrawPixel(x, 15, 1);
+		}
+
+		// 상태 표시
+		LCD_WriteString(2, 18, "EQ:", Font_7x10, 1);
+		LCD_WriteString(23, 18, i2sUseEq ? "ON" : "OFF", Font_7x10, 1);
+
+		if (!agcOff)
+		{
+			char agcText[8];
+			snprintf(agcText, sizeof(agcText), "%.2f", AGC_GetGain());
+			LCD_WriteString(62, 18, "AGC:", Font_7x10, 1);
+			LCD_WriteString(90, 18, agcText, Font_7x10, 1);
+		}
+
+		// dB_min 게이지
+		LCD_WriteString(19, 38, "LED RANGE(dB)", Font_7x10, 1);
+		LCD_WriteString(0, 54, "-60", Font_7x10, 1);
+		LCD_DrawGauge(28, 52, 72, 10, (int)db_min, 0, 100);
+		LCD_WriteString(106, 54, "-20", Font_7x10, 1);
 	}
-
-	char *input_mode;
-	switch (audioSource)
-	{
-		case AUDIO_SRC_USB:
-			input_mode = "USB";
-			break;
-		case AUDIO_SRC_AUX:
-			input_mode = "AUX";
-			break;
-		case AUDIO_SRC_BT:
-			input_mode = " BT";
-			break;
-		default:
-			input_mode = " ";
-			break;
-	}
-
-	uint8_t db_min;
-	ADC_GetValue_VOL(&db_min);
-
-	LCD_ClearBuffer();
-
-	// y = 0~15 노랑 영역
-	LCD_WriteString(36, 3, input_mode, Font_7x10, 1);
-	LCD_WriteString(64, 3, "MODE", Font_7x10, 1);
-
-	// 노랑/파랑 영역 경계선
-	for (uint8_t x = 0; x < SSD1306_WIDTH; x++)
-	{
-		LCD_DrawPixel(x, 15, 1);
-	}
-
-	// 상태 표시
-	LCD_WriteString(2, 18, "EQ:", Font_7x10, 1);
-	LCD_WriteString(23, 18, i2sUseEq ? "ON" : "OFF", Font_7x10, 1);
-
-	if (!agcOff)
-	{
-		char agcText[8];
-		snprintf(agcText, sizeof(agcText), "%.2f", AGC_GetGain());
-		LCD_WriteString(62, 18, "AGC:", Font_7x10, 1);
-		LCD_WriteString(90, 18, agcText, Font_7x10, 1);
-	}
-
-	// dB_min 게이지
-	LCD_WriteString(19, 38, "LED RANGE(dB)", Font_7x10, 1);
-	LCD_WriteString(0, 54, "-60", Font_7x10, 1);
-	LCD_DrawGauge(28, 52, 72, 10, (int)db_min, 0, 100);
-	LCD_WriteString(106, 54, "-20", Font_7x10, 1);
 
 	LCD_RefreshDMA();
 }

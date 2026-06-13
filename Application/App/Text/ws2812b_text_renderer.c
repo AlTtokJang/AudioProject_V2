@@ -14,6 +14,8 @@
 #define TEXT_MAX_LEN				50
 #define TEXT_SCROLL_INTERVAL_MS		200
 
+static uint16_t s_scrollSpeed =  TEXT_SCROLL_INTERVAL_MS;
+
 static uint8_t s_frame[16 * 16 * 3];					// WS2812B_Show() 프레임
 
 static const uint16_t *s_glyphCols[TEXT_MAX_LEN];		// 폰트의 데이터 주소
@@ -26,14 +28,14 @@ static int16_t s_textOffsetX;
 static uint32_t s_lastTick;
 
 static uint8_t s_lastText[TEXT_MAX_LEN][4];
-static uint8_t s_textReady;
+static uint8_t s_lastSpacing;
 
 static const uint16_t s_digitFont[10][3] =
 {
 	{ 0x7FFE, 0x6006, 0x7FFE },	// 0
 	{ 0x6018, 0x7FFE, 0x6000 },	// 1
 	{ 0x7F86, 0x6186, 0x61FE },	// 2
-	{ 0x7FFE, 0x6186, 0x6186 },	// 3
+	{ 0x6186, 0x6186, 0x7FFE },	// 3
 	{ 0x01FE, 0x0180, 0x7FFE },	// 4
 	{ 0x61FE, 0x6186, 0x7F86 },	// 5
 	{ 0x7FFE, 0x6186, 0x7F86 },	// 6
@@ -85,7 +87,7 @@ static char TextRenderer_ToUpper(char ch)
 
 
 // 글자 비트맵 그리기
-static void TextRenderer_BuildGlyphs(const uint8_t (*text)[4])
+static void TextRenderer_BuildGlyphs(const uint8_t (*text)[4], uint8_t spacing)
 {
 	uint16_t cursorX = 0;
 
@@ -120,14 +122,18 @@ static void TextRenderer_BuildGlyphs(const uint8_t (*text)[4])
 		else if (ch == ' ')
 		{
 			s_glyphCols[s_glyphCount] = 0;
-			s_glyphW[s_glyphCount] = 2;
+			s_glyphW[s_glyphCount] = spacing ? 2 : 1;
 		}
 		else
 		{
 			continue;
 		}
 
-		cursorX += s_glyphW[s_glyphCount] + 1;
+		if (spacing && (text[i + 1][0] != '\0'))
+			cursorX += s_glyphW[s_glyphCount] + 1;
+		else
+			cursorX += s_glyphW[s_glyphCount];
+
 		s_glyphCount++;
 	}
 
@@ -139,7 +145,7 @@ static void TextRenderer_BuildGlyphs(const uint8_t (*text)[4])
 	}
 	else
 	{
-		s_textOffsetX = 0;
+		s_textOffsetX = spacing ? (16 - s_textWidth) / 2 : 0;
 	}
 
 	s_lastTick = HAL_GetTick();
@@ -212,13 +218,12 @@ static void TextRenderer_UpdateScroll(void)
 
 	if (s_textWidth <= 16u)
 	{
-		s_textOffsetX = 0;
 		return;
 	}
 
 	now = HAL_GetTick();
 
-	if ((now - s_lastTick) < TEXT_SCROLL_INTERVAL_MS)
+	if ((now - s_lastTick) < s_scrollSpeed)
 	{
 		return;
 	}
@@ -233,7 +238,7 @@ static void TextRenderer_UpdateScroll(void)
 	}
 }
 
-const uint8_t* TextRenderer_Render(const uint8_t (*text)[4])
+const uint8_t* TextRenderer_Render(const uint8_t (*text)[4], uint8_t spacing)
 {
 	int16_t offsetX;
 	int16_t screenX;
@@ -244,11 +249,11 @@ const uint8_t* TextRenderer_Render(const uint8_t (*text)[4])
 		return s_frame;
 	}
 
-	if ((s_textReady == 0U) || (memcmp(s_lastText, text, sizeof(s_lastText)) != 0))
+	if (memcmp(s_lastText, text, sizeof(s_lastText)) != 0 || s_lastSpacing != spacing)
 	{
 		memcpy(s_lastText, text, sizeof(s_lastText));
-		s_textReady = 1U;
-		TextRenderer_BuildGlyphs(text);
+		s_lastSpacing = spacing;
+		TextRenderer_BuildGlyphs(text, spacing);
 	}
 
 	TextRenderer_UpdateScroll();
@@ -275,4 +280,31 @@ const uint8_t* TextRenderer_Render(const uint8_t (*text)[4])
 	}
 
 	return s_frame;
+}
+
+void TextRenderer_SpeedUp(void)
+{
+	if (s_scrollSpeed > 100)
+		s_scrollSpeed -= 20;
+}
+
+void TextRenderer_SpeedDown(void)
+{
+	if (s_scrollSpeed < 300)
+		s_scrollSpeed += 20;
+}
+
+uint8_t TextRenderer_TextLen(void)
+{
+	return s_glyphCount;
+}
+
+uint8_t TextRenderer_IsScrolling(void)
+{
+	return s_textWidth > 16;
+}
+
+uint16_t TextRenderer_WhatIsSpeed(void)
+{
+	return 10 - ((s_scrollSpeed - 100) / 20);
 }

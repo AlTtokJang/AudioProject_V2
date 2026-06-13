@@ -71,11 +71,11 @@ void App_Main(void)
 			rtcText[3][0] = '0' + (time.Minutes % 10U);
 			rtcText[3][1] = 100U;
 
-			WS2812B_Show(TextRenderer_Render(rtcText));
+			WS2812B_Show(TextRenderer_Render(rtcText, 0));
 		}
 		else if (audioSource == MORE_MOD_TEXT)
 		{
-			WS2812B_Show(TextRenderer_Render(HIDText_GetText()));
+			WS2812B_Show(TextRenderer_Render(HIDText_GetText(), 1));
 		}
 		else
 		{
