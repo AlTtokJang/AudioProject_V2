@@ -332,7 +332,7 @@ void LCD_DrawMainScreen(void)
 		}
 
 		LCD_WriteString(46, 19, timeText, Font_7x10, 1);
-		LCD_WriteString(25, 34, dateText, Font_7x10, 1);
+		LCD_WriteString(29, 34, dateText, Font_7x10, 1);
 		LCD_WriteStringCenter(49, week, Font_7x10, 1);
 	}
 	else if (audioSource == MORE_MOD_TEXT)
