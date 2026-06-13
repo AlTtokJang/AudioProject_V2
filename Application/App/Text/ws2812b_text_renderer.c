@@ -145,7 +145,7 @@ static void TextRenderer_BuildGlyphs(const uint8_t (*text)[4], uint8_t spacing)
 	}
 	else
 	{
-		s_textOffsetX = spacing ? (16 - s_textWidth) / 2 : 0;
+		s_textOffsetX = (16 - s_textWidth) / 2;
 	}
 
 	s_lastTick = HAL_GetTick();

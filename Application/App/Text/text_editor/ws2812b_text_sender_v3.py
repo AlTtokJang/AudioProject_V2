@@ -31,7 +31,6 @@ class TextSenderApp:
 		self.current_rgb = (100, 0, 0)
 		self.last_text = ""
 		self.char_colors = [(0, 0, 0) for _ in range(MAX_TEXT_LEN)]
-		self.last_selection = (0, 0)
 		self.program_editing = False
 		self.slider_syncing = False
 		self.pending_refresh = False
@@ -236,22 +235,16 @@ class TextSenderApp:
 		try:
 			start = self.index_to_offset(self.text_box.index("sel.first"))
 			end = self.index_to_offset(self.text_box.index("sel.last"))
-			self.last_selection = (start, end)
 		except tk.TclError:
-			start, end = self.last_selection
-
-			if end <= start:
-				cursor = self.index_to_offset(self.text_box.index("insert"))
-				start = cursor
-				end = cursor + 1
-
+			return None, None
+	
 		text_len = len(self.get_text())
 		start = max(0, min(text_len, start))
 		end = max(0, min(text_len, end))
-
-		if end < start:
-			start, end = end, start
-
+	
+		if end <= start:
+			return None, None
+	
 		return start, end
 
 	def on_key_press(self, event):
@@ -433,13 +426,13 @@ class TextSenderApp:
 
 	def apply_color_to_selection(self, rgb):
 		start, end = self.get_selection_range()
-
-		if end <= start:
+	
+		if start is None or end is None:
 			return
-
+	
 		for i in range(start, end):
 			self.char_colors[i] = rgb
-
+	
 		self.refresh_text_color()
 
 	def refresh_slider_labels(self):
@@ -537,7 +530,6 @@ class TextSenderApp:
 	def clear_text(self):
 		self.set_text("")
 		self.last_text = ""
-		self.last_selection = (0, 0)
 		self.char_colors = [(0, 0, 0) for _ in range(MAX_TEXT_LEN)]
 		self.refresh_all()
 

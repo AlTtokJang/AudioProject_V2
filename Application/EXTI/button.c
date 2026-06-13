@@ -13,6 +13,7 @@
 #include "bt.h"
 #include "visual_renderer.h"
 #include "ws2812b_text_renderer.h"
+#include "rtc.h"
 
 volatile AudioSource_t audioSource = AUDIO_SRC_USB;
 volatile uint8_t i2sUseEq = 0;
@@ -426,6 +427,8 @@ static void Confirm_EXTI(void)
 					//ADC_Stop_Aux();
 					//I2S_Stop_BT();
 					//AudioPipeline_RingClear();
+					if (RTC_WhatAreYouModifying() != RTC_NONE)
+						RTC_MakeModifyTargetNone();
 					audioSource = MORE_MOD_TEXT;
 					break;
 				case MORE_MOD_TEXT:
@@ -445,15 +448,32 @@ static void Confirm_EXTI(void)
 		case BTN2_Pin:
 			if (audioSource < MORE_MOD_CLOCK)
 				i2sUseEq = !i2sUseEq;
-			else
+			else if (audioSource == MORE_MOD_CLOCK)
+				RTC_NextModifyTarget();
+			else if (audioSource == MORE_MOD_TEXT)
 				TextRenderer_SpeedDown();
 			break;
 		case BTN3_Pin:
+			if (audioSource == MORE_MOD_CLOCK)
+			{
+				if (RTC_WhatAreYouModifying() != RTC_NONE)
+					RTC_ModifyDecrease();
+				else
+					RTC_NextShowOnLed();
+			}
+			else if (audioSource == MORE_MOD_TEXT)
 				TextRenderer_SpeedUp();
 			break;
 		case BTN4_Pin:
 			if (audioSource < MORE_MOD_CLOCK)
 				VisualRenderer_NextMode();
+			else if (audioSource == MORE_MOD_CLOCK)
+			{
+				if (RTC_WhatAreYouModifying() != RTC_NONE)
+					RTC_ModifyIncrease();
+				else
+					RTC_NextColorOnLed();
+			}
 			break;
 		default:
 			break;

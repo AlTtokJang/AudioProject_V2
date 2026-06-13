@@ -19,14 +19,14 @@
 #include "ws2812b.h"
 #include "ws2812b_text_renderer.h"
 #include "usb_hid_text.h"
+#include "rtc.h"
 
 extern volatile AudioSource_t audioSource;
-
-extern RTC_HandleTypeDef hrtc;	// RTC 테스트용 이후에 옮기던지 말던지 할 거임
 
 void App_Main(void)
 {
 	HIDText_LoadFromFlash();
+	RTC_LoadFromFlash();
 
 	LCD_AppModeInit();
 
@@ -45,33 +45,12 @@ void App_Main(void)
 
 	while (1)
 	{
+		RTC_FlashSaveTask();
 		LCD_DrawMainScreen();
 
 		if (audioSource == MORE_MOD_CLOCK)
 		{
-			// RTC 테스트 로직 이후에 지울 예정임
-			static uint8_t rtcText[50][4];
-			RTC_TimeTypeDef time = {0};
-			RTC_DateTypeDef date = {0};
-
-			HAL_RTC_GetTime(&hrtc, &time, RTC_FORMAT_BIN);
-			HAL_RTC_GetDate(&hrtc, &date, RTC_FORMAT_BIN);
-
-			memset(rtcText, 0, sizeof(rtcText));
-
-			rtcText[0][0] = '0' + (time.Hours / 10U);
-			rtcText[0][1] = 100U;
-
-			rtcText[1][0] = '0' + (time.Hours % 10U);
-			rtcText[1][1] = 100U;
-
-			rtcText[2][0] = '0' + (time.Minutes / 10U);
-			rtcText[2][1] = 100U;
-
-			rtcText[3][0] = '0' + (time.Minutes % 10U);
-			rtcText[3][1] = 100U;
-
-			WS2812B_Show(TextRenderer_Render(rtcText, 0));
+			WS2812B_Show(TextRenderer_Render(RTC_GetText(), 0));
 		}
 		else if (audioSource == MORE_MOD_TEXT)
 		{

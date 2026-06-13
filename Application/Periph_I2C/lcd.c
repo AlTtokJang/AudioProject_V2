@@ -12,6 +12,7 @@
 #include "adc.h"
 #include "agc.h"
 #include "ws2812b_text_renderer.h"
+#include "rtc.h"
 #include <string.h>
 #include <stdio.h>
 
@@ -22,6 +23,14 @@ extern volatile uint8_t agcOff;
 
 extern I2C_HandleTypeDef hi2c2;
 extern DMA_HandleTypeDef hdma_i2c2_tx;
+
+RTC_TimeTypeDef s_time;
+RTC_DateTypeDef s_date;
+
+static const char *lcdWeekText[7] = {
+	"MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY",
+	"FRIDAY", "SATURDAY", "SUNDAY"
+};
 
 static uint8_t firstView = 1;	// EQ 초기 실행 표시
 
@@ -240,6 +249,18 @@ static void LCD_DrawEQScreen(void)
 	LCD_RefreshDMA();
 }
 
+static void LCD_WriteStringCenter(uint8_t y, const char *str, FontDef font, uint8_t on)
+{
+	uint8_t len = strlen(str);
+	uint8_t w = len * font.FontWidth;
+	uint8_t x = 0;
+
+	if (w < SSD1306_WIDTH)
+		x = (SSD1306_WIDTH - w) / 2;
+
+	LCD_WriteString(x, y, str, font, on);
+}
+
 void LCD_DrawMainScreen(void)
 {
 	if (lcd_dma_busy)
@@ -249,6 +270,9 @@ void LCD_DrawMainScreen(void)
 
 	if (audioSource == MORE_MOD_CLOCK)
 	{
+		RTC_GetTimeStruct(&s_time);
+		RTC_GetDateStruct(&s_date);
+
 		LCD_ClearBuffer();
 
 		LCD_WriteString(29, 3, "CLOCK MODE", Font_7x10, 1);
@@ -258,6 +282,58 @@ void LCD_DrawMainScreen(void)
 		{
 			LCD_DrawPixel(x, 15, 1);
 		}
+
+		char timeText[8];
+		char dateText[14];
+		const char *week = "UNKNOWN";
+
+		snprintf(timeText, sizeof(timeText),
+				"%02d:%02d",
+				s_time.Hours,
+				s_time.Minutes);
+
+		snprintf(dateText, sizeof(dateText),
+				"20%02d-%02d-%02d",
+				s_date.Year,
+				s_date.Month,
+				s_date.Date);
+
+		week = lcdWeekText[s_date.WeekDay - 1];
+
+		if (RTC_ShouldIBlink())
+		{
+			switch (RTC_WhatAreYouModifying())
+			{
+				case RTC_HOUR:
+					timeText[0] = ' ';
+					timeText[1] = ' ';
+					break;
+				case RTC_MINUTE:
+					timeText[3] = ' ';
+					timeText[4] = ' ';
+					break;
+				case RTC_YEAR:
+					dateText[0] = ' ';
+					dateText[1] = ' ';
+					dateText[2] = ' ';
+					dateText[3] = ' ';
+					break;
+				case RTC_MONTH:
+					dateText[5] = ' ';
+					dateText[6] = ' ';
+					break;
+				case RTC_DATE:
+					dateText[8] = ' ';
+					dateText[9] = ' ';
+					break;
+				default:
+					break;
+			}
+		}
+
+		LCD_WriteString(46, 19, timeText, Font_7x10, 1);
+		LCD_WriteString(25, 34, dateText, Font_7x10, 1);
+		LCD_WriteStringCenter(49, week, Font_7x10, 1);
 	}
 	else if (audioSource == MORE_MOD_TEXT)
 	{
@@ -273,18 +349,18 @@ void LCD_DrawMainScreen(void)
 
 		char lenText[8];
 		snprintf(lenText, sizeof(lenText), "%d/50", TextRenderer_TextLen());
-		LCD_WriteString(2, 18, "CHARS:", Font_7x10, 1);
-		LCD_WriteString(44, 18, lenText, Font_7x10, 1);
+		LCD_WriteString(2, 19, "CHARS:", Font_7x10, 1);
+		LCD_WriteString(44, 19, lenText, Font_7x10, 1);
 
-		LCD_WriteString(2, 30, "SHIFT:", Font_7x10, 1);
-		LCD_WriteString(44, 30, TextRenderer_IsScrolling() ? "ON" : "OFF", Font_7x10, 1);
+		LCD_WriteString(2, 34, "SHIFT:", Font_7x10, 1);
+		LCD_WriteString(44, 34, TextRenderer_IsScrolling() ? "ON" : "OFF", Font_7x10, 1);
 
 		if (TextRenderer_IsScrolling())
 		{
-			char speedText[8];
+			char speedText[9];
 			snprintf(speedText, sizeof(speedText), "%d/10", TextRenderer_WhatIsSpeed());
-			LCD_WriteString(2, 42, "SPEED:", Font_7x10, 1);
-			LCD_WriteString(44, 42, speedText, Font_7x10, 1);
+			LCD_WriteString(2, 49, "SPEED:", Font_7x10, 1);
+			LCD_WriteString(44, 49, speedText, Font_7x10, 1);
 		}
 	}
 	else
