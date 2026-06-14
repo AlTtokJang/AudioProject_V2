@@ -10,11 +10,23 @@
 
 #include "global_define.h"
 #include "audio_pipeline.h"
+#include "spectral_subtraction.h"
 
 #include <stdio.h>
+#include <string.h>
 
 #define ADC_SAMPLE_SIZE MASTER_BLOCK_SIZE
-#define ADC_BUFFER_SIZE ADC_SAMPLE_SIZE * 2
+#define ADC_BUFFER_SIZE (ADC_SAMPLE_SIZE * 2U)
+
+#if ADC_SAMPLE_SIZE != SS_HOP_SIZE
+#error "ADC_SAMPLE_SIZE must be equal to SS_HOP_SIZE for spectral subtraction"
+#endif
+
+#define AUX_HALF_RAW_SIZE      ADC_SAMPLE_SIZE
+#define AUX_BLOCK_RAW_SIZE     ADC_BUFFER_SIZE
+#define AUX_BLOCK_COUNT        2U
+
+#define AUX_MUTE_ENABLE        1U
 
 extern ADC_HandleTypeDef hadc1;
 extern ADC_HandleTypeDef hadc3;
@@ -25,14 +37,31 @@ extern TIM_HandleTypeDef htim2;
 extern TIM_HandleTypeDef htim6;
 
 static volatile uint16_t auxBuffer[ADC_BUFFER_SIZE];
-static int16_t auxSample[ADC_SAMPLE_SIZE];
+
+/*
+ * ADC DMA callback에서는 FFT를 돌리지 않는다.
+ * callback에서는 DMA half/full 원본만 auxRawBlock으로 복사하고 ready flag만 세운다.
+ */
+static volatile uint16_t auxRawBlock[AUX_BLOCK_COUNT][AUX_BLOCK_RAW_SIZE];
+static volatile uint8_t auxWriteBlock;
+static volatile uint8_t auxReadyBlock;
+static volatile uint8_t auxBlockReady;
+static volatile uint32_t auxBlockDropCount;
+
+/* AudioPipeline은 stereo interleaved int16을 기대한다. */
+static int16_t auxSample[ADC_BUFFER_SIZE];
+
+static float32_t auxSsSrc[2][SS_HOP_SIZE];
+static float32_t auxSsDst[2][SS_HOP_SIZE];
 
 static volatile uint16_t vregBuffer[VREG_BUFFER_SIZE];
 static uint8_t  vregValue[VREG_BUFFER_SIZE];
 static uint16_t vregLpf[VREG_BUFFER_SIZE];
 
-static void DigitalFilter_Aux(uint8_t target);
+static void ADC_CaptureAuxBlock(uint8_t target);
+static void ADC_ProcessAuxBlock(const volatile uint16_t *raw);
 static void DigitalFilter_VReg(void);
+static int16_t ADC_CountToPcm16(float32_t x);
 
 static volatile uint8_t auxIsRunning;
 static volatile uint8_t vregIsRunning;
@@ -47,7 +76,7 @@ void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef *hadc)
 	{
 		if (auxIsRunning)
 		{
-			DigitalFilter_Aux(0);
+			ADC_CaptureAuxBlock(0);
 
 			#ifdef ADC_DEBUG
 			ADC_DebugCaptureAuxBlock(0);
@@ -62,7 +91,7 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
 	{
 		if (auxIsRunning)
 		{
-			DigitalFilter_Aux(1);
+			ADC_CaptureAuxBlock(1);
 
 		#ifdef ADC_DEBUG
 		ADC_DebugCaptureAuxBlock(1);
@@ -92,12 +121,19 @@ void ADC_Start_Aux(void)
 	for (uint16_t i = 0; i < ADC_BUFFER_SIZE; i++)
 	{
 		auxBuffer[i] = 0;
-	}
-
-	for (uint16_t i = 0; i < ADC_SAMPLE_SIZE; i++)
-	{
 		auxSample[i] = 0;
 	}
+
+	memset((void *)auxRawBlock, 0, sizeof(auxRawBlock));
+	memset(auxSsSrc, 0, sizeof(auxSsSrc));
+	memset(auxSsDst, 0, sizeof(auxSsDst));
+
+	auxWriteBlock = 0;
+	auxReadyBlock = 0;
+	auxBlockReady = 0;
+	auxBlockDropCount = 0;
+
+	SpectralSub_Init();
 
 	if (HAL_ADC_Start_DMA(&hadc1, (uint32_t *)auxBuffer, ADC_BUFFER_SIZE) != HAL_OK)
 	{
@@ -222,48 +258,111 @@ void ADC_GetValue_VOL(uint8_t *out)
 	*out = vregValue[0];
 }
 
-static void DigitalFilter_Aux(uint8_t target)
+/*
+ * App_Main while(1)에서 최대한 자주 호출한다.
+ * ADC DMA callback 안에서는 FFT를 돌리지 않고, 여기서만 SpectralSub_Process를 실행한다.
+ */
+void ADC_Task_Aux(void)
 {
-	// 향후 필터 개선 필요
+	uint8_t readBlock;
 
-	#define AUX_MUTE_ENTER_LEVEL	8
-	#define AUX_MUTE_EXIT_LEVEL		16
+	if (auxBlockReady == 0)
+	{
+		return;
+	}
+
+	readBlock = auxReadyBlock;
+	ADC_ProcessAuxBlock(auxRawBlock[readBlock]);
+
+	__disable_irq();
+	auxBlockReady = 0;
+	__enable_irq();
+}
+
+static void ADC_CaptureAuxBlock(uint8_t target)
+{
+	uint16_t dmaOffset;
+	uint16_t blockOffset;
+	uint8_t writeBlock;
+
+	writeBlock = auxWriteBlock;
+
+	if (target == 0)
+	{
+		dmaOffset = 0;
+		blockOffset = 0;
+	}
+	else
+	{
+		dmaOffset = AUX_HALF_RAW_SIZE;
+		blockOffset = AUX_HALF_RAW_SIZE;
+	}
+
+	for (uint16_t i = 0; i < AUX_HALF_RAW_SIZE; i++)
+	{
+		auxRawBlock[writeBlock][blockOffset + i] = auxBuffer[dmaOffset + i];
+	}
+
+	if (target == 0)
+	{
+		return;
+	}
+
+	if (auxBlockReady == 0)
+	{
+		auxReadyBlock = writeBlock;
+		auxBlockReady = 1;
+		auxWriteBlock = writeBlock ^ 1U;
+	}
+	else
+	{
+		auxBlockDropCount++;
+	}
+}
+
+static void ADC_ProcessAuxBlock(const volatile uint16_t *raw)
+{
+	#define AUX_MUTE_ENTER_LEVEL	3
+	#define AUX_MUTE_EXIT_LEVEL		6
 	#define AUX_MUTE_HOLD_BLOCKS	30
 
 	#define AUX_GAIN_MAX			32767
 	#define AUX_GAIN_STEP			32
 
 	static uint16_t muteHoldCount = 0;
-	static uint8_t muteActive = 0;
+	static uint8_t muteActive = 1;
 	static int32_t softGain = AUX_GAIN_MAX;
 
-	uint16_t offset;
 	uint32_t absSum = 0;
 	uint32_t avgAbs;
 
-	if (target == 0)
-		offset = 0;
-	else
-		offset = ADC_SAMPLE_SIZE;
-
-	for (uint16_t i = 0; i < ADC_SAMPLE_SIZE; i++)
+	/* raw: L0,R0,L1,R1... 총 256 stereo frames */
+	for (uint16_t i = 0; i < SS_HOP_SIZE; i++)
 	{
-		int16_t sample;
+		uint16_t rawIndex = i * 2U;
+
+		auxSsSrc[0][i] = (float32_t)raw[rawIndex + 0U] - 2048.0f;
+		auxSsSrc[1][i] = (float32_t)raw[rawIndex + 1U] - 2048.0f;
+	}
+
+	SpectralSub_Process(auxSsSrc, auxSsDst);
+
+	for (uint16_t i = 0; i < SS_HOP_SIZE; i++)
+	{
+		float32_t mixed;
 		int16_t absSample;
 
-		sample = ((int16_t)auxBuffer[offset + i] - 2048);
+		mixed = (auxSsDst[0][i] + auxSsDst[1][i]) * 0.5f;
 
-		auxSample[i] = sample;
-
-		if (sample < 0)
-			absSample = -sample;
+		if (mixed < 0.0f)
+			absSample = (int16_t)(-mixed);
 		else
-			absSample = sample;
+			absSample = (int16_t)mixed;
 
 		absSum += absSample;
 	}
 
-	avgAbs = absSum / ADC_SAMPLE_SIZE;
+	avgAbs = absSum / SS_HOP_SIZE;
 
 	if (avgAbs < AUX_MUTE_ENTER_LEVEL)
 	{
@@ -279,9 +378,16 @@ static void DigitalFilter_Aux(uint8_t target)
 	if (muteHoldCount >= AUX_MUTE_HOLD_BLOCKS)
 		muteActive = 1;
 
-	for (uint16_t i = 0; i < ADC_SAMPLE_SIZE; i++)
+	#if (AUX_MUTE_ENABLE == 0U)
+	muteActive = 0;
+	softGain = AUX_GAIN_MAX;
+	#endif
+
+	for (uint16_t i = 0; i < SS_HOP_SIZE; i++)
 	{
-		int32_t y;
+		float32_t l;
+		float32_t r;
+		int32_t gain;
 
 		if (muteActive)
 		{
@@ -298,19 +404,43 @@ static void DigitalFilter_Aux(uint8_t target)
 				softGain = AUX_GAIN_MAX;
 		}
 
-		y = (int32_t)auxSample[i] * softGain;
-		y >>= 15;
+		gain = softGain;
 
-		auxSample[i] = (int16_t)y;
+		l = auxSsDst[0][i] * (float32_t)gain / 32767.0f;
+		r = auxSsDst[1][i] * (float32_t)gain / 32767.0f;
+
+		auxSample[i * 2U + 0U] = ADC_CountToPcm16(l);
+		auxSample[i * 2U + 1U] = ADC_CountToPcm16(r);
 	}
 
-	AudioPipeline_Push(auxSample, ADC_SAMPLE_SIZE);
+	/* 256 stereo frames = 512 int16 samples를 push해야 한다. */
+	AudioPipeline_Push(auxSample, ADC_BUFFER_SIZE);
 
 	#undef AUX_MUTE_ENTER_LEVEL
 	#undef AUX_MUTE_EXIT_LEVEL
 	#undef AUX_MUTE_HOLD_BLOCKS
 	#undef AUX_GAIN_MAX
 	#undef AUX_GAIN_STEP
+}
+
+static int16_t ADC_CountToPcm16(float32_t x)
+{
+	int32_t y;
+
+	/* raw - 2048 기준 12bit count를 16bit PCM 스케일로 확장 */
+	x *= 16.0f;
+
+	if (x > 32767.0f)
+		x = 32767.0f;
+	else if (x < -32768.0f)
+		x = -32768.0f;
+
+	if (x >= 0.0f)
+		y = (int32_t)(x + 0.5f);
+	else
+		y = (int32_t)(x - 0.5f);
+
+	return (int16_t)y;
 }
 
 static void DigitalFilter_VReg(void)

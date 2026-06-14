@@ -21,6 +21,8 @@ void ADC_Stop_VReg(void);
 void ADC_GetValue_EQ(uint8_t *out);
 void ADC_GetValue_VOL(uint8_t *out);
 
+void ADC_Task_Aux(void);
+
 /*
  * 디버거 -------------------------------------------------------------------------------------
  */

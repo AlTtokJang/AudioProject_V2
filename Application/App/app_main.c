@@ -45,6 +45,9 @@ void App_Main(void)
 
 	while (1)
 	{
+		if (audioSource == AUDIO_SRC_AUX)
+			ADC_Task_Aux();
+
 		RTC_FlashSaveTask();
 		LCD_DrawMainScreen();
 
