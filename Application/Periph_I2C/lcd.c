@@ -263,6 +263,17 @@ static void LCD_WriteStringCenter(uint8_t y, const char *str, FontDef font, uint
 
 void LCD_DrawMainScreen(void)
 {
+	static uint32_t lastLcdTick = 0;
+
+	uint32_t now = HAL_GetTick();
+
+	if ((now - lastLcdTick) < 100U)
+	{
+		return;
+	}
+
+	lastLcdTick = now;
+
 	if (lcd_dma_busy)
 	{
 		return;
