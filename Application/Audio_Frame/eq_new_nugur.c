@@ -275,9 +275,9 @@ void EQ_ProcessStereo(const int16_t *in,
          * dB
         --------------------------------------------------------------------------------------------
         */
-        float targetLowDB  = nLow  * 12.0f;
-        float targetMidDB  = nMid  * 12.0f;
-        float targetHighDB = nHigh * 12.0f;
+        float targetLowDB  = nLow  * 15.0f;
+        float targetMidDB  = nMid  * 15.0f;
+        float targetHighDB = nHigh * 15.0f;
 
         /*
         --------------------------------------------------------------------------------------------
